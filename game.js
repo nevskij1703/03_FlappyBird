@@ -46,8 +46,7 @@ export class Game {
     this.lastTs = 0;
     this.flameFlicker = 0;
 
-    // Revive
-    this.reviveUsedThisAttempt = false;
+    // Revive — лимита нет, ведётся только неуязвимость после возрождения
     this.invulnerableUntil = 0;
 
     // Parallax stars: 3 слоя
@@ -117,7 +116,6 @@ export class Game {
       startEndless: () => this.startGame(),
       revive: () => this.tryRevive(),
       restart: () => this.startGame(),
-      toMenu: () => this.toMenu(),
       pause: () => this.pause(),
       resume: () => this.resume(),
       toggleSound: () => {
@@ -155,7 +153,6 @@ export class Game {
     this.player.rotation = 0;
     this.obstacles.reset();
     this.score = 0;
-    this.reviveUsedThisAttempt = false;
     this.invulnerableUntil = 0;
     this.currentParams = this.mode.paramsForScore(0);
     this.state = STATE.PLAYING;
@@ -165,22 +162,22 @@ export class Game {
     this.lastTs = performance.now();
   }
 
-  toMenu() {
-    this.state = STATE.MENU;
-    this.ui.showStart();
-  }
-
   pause() {
     if (this.state !== STATE.PLAYING) return;
     this.state = STATE.PAUSED;
     this.ui.showPause();
   }
 
+  // Возвращение в игру с отсчётом 3-2-1, чтобы игрок успел подготовиться.
   resume() {
     if (this.state !== STATE.PAUSED) return;
     this.ui.hidePause();
-    this.state = STATE.PLAYING;
-    this.lastTs = performance.now();
+    // Состояние остаётся PAUSED во время отсчёта — физика не идёт, тап игнорируется.
+    this.ui.showCountdown(3, () => {
+      if (this.state !== STATE.PAUSED) return; // если за это время сменили состояние — не запускаем
+      this.state = STATE.PLAYING;
+      this.lastTs = performance.now();
+    });
   }
 
   handleTap() {
@@ -192,16 +189,15 @@ export class Game {
 
   tryRevive() {
     if (this.state !== STATE.DEAD) return;
-    if (this.reviveUsedThisAttempt) return;
     if (!CONFIG.ads.rewardedReviveEnabled) return;
-    // Rewarded реклама показывается ТОЛЬКО по тапу игрока (правило)
+    // Rewarded реклама показывается ТОЛЬКО по тапу игрока (правило).
+    // Лимита на количество revive нет — пока готов смотреть рекламу, можно возрождаться.
     this.state = STATE.AD;
     Ads.showRewardedAd().then((ok) => {
       if (!ok) {
         this.state = STATE.DEAD;
         return;
       }
-      this.reviveUsedThisAttempt = true;
       // Чистим ближайшие препятствия для безопасного рестарта
       this.obstacles.clearNear(this.player.x, 220);
       // Возвращаем ракету в центр по высоте, чтобы revive был "безопасным рестартом"

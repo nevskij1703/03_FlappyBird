@@ -21,16 +21,18 @@ export class UI {
       gameoverNewRecord: document.getElementById('gameover-newrecord'),
       btnRevive: document.getElementById('btn-revive'),
       btnRestart: document.getElementById('btn-restart'),
-      btnMenu: document.getElementById('btn-menu'),
 
       pause: document.getElementById('screen-pause'),
       btnPause: document.getElementById('btn-pause'),
       btnResume: document.getElementById('btn-resume'),
-      btnPauseMenu: document.getElementById('btn-pause-menu'),
       btnSoundPause: document.getElementById('btn-sound-pause'),
       btnVibrationPause: document.getElementById('btn-vibration-pause'),
+
+      countdown: document.getElementById('countdown'),
+      countdownNum: document.getElementById('countdown-num'),
     };
     this.allScreens = [this.el.start, this.el.gameover, this.el.pause];
+    this._countdownTimer = null;
   }
 
   _hideAll() {
@@ -41,6 +43,7 @@ export class UI {
   hideAll() {
     this._hideAll();
     this.el.hud.classList.add('hidden');
+    this.hideCountdown();
   }
 
   showStart() {
@@ -61,7 +64,7 @@ export class UI {
   }
 
   updateBest(best) {
-    this.el.best.textContent = '★ ' + String(best);
+    this.el.best.textContent = 'Рекорд: ' + String(best);
   }
 
   showGameOver(score, best, isNewRecord) {
@@ -82,17 +85,56 @@ export class UI {
     this.el.pause.classList.add('hidden');
   }
 
+  // Отсчёт 3..2..1 перед возобновлением игры.
+  // onDone вызывается, когда отсчёт закончился.
+  showCountdown(seconds, onDone) {
+    this.hideCountdown();
+    const overlay = this.el.countdown;
+    const num = this.el.countdownNum;
+    overlay.classList.remove('hidden');
+    let left = seconds;
+    this._renderCountdownTick(num, left);
+
+    const step = () => {
+      left--;
+      if (left <= 0) {
+        overlay.classList.add('hidden');
+        this._countdownTimer = null;
+        onDone?.();
+        return;
+      }
+      this._renderCountdownTick(num, left);
+      this._countdownTimer = setTimeout(step, 1000);
+    };
+    this._countdownTimer = setTimeout(step, 1000);
+  }
+
+  // Перезапускает CSS-анимацию pulse на счётчике.
+  _renderCountdownTick(num, value) {
+    num.textContent = String(value);
+    num.style.animation = 'none';
+    // force reflow, чтобы анимация сработала заново
+    void num.offsetWidth;
+    num.style.animation = '';
+  }
+
+  hideCountdown() {
+    if (this._countdownTimer) {
+      clearTimeout(this._countdownTimer);
+      this._countdownTimer = null;
+    }
+    this.el.countdown.classList.add('hidden');
+  }
+
   _syncSoundButtons() {
     const sound = Storage.get('soundOn') !== false;
     const vib = Storage.get('vibrationOn') !== false;
     [this.el.btnSound, this.el.btnSoundPause].forEach((b) => {
       if (!b) return;
-      b.textContent = sound ? '🔊' : '🔇';
       b.classList.toggle('off', !sound);
     });
     [this.el.btnVibration, this.el.btnVibrationPause].forEach((b) => {
       if (!b) return;
-      b.textContent = vib ? '📳' : '📴';
       b.classList.toggle('off', !vib);
     });
   }
@@ -102,10 +144,8 @@ export class UI {
     this.el.btnEndless.onclick      = () => handlers.startEndless?.();
     this.el.btnRevive.onclick       = () => handlers.revive?.();
     this.el.btnRestart.onclick      = () => handlers.restart?.();
-    this.el.btnMenu.onclick         = () => handlers.toMenu?.();
     this.el.btnPause.onclick        = () => handlers.pause?.();
     this.el.btnResume.onclick       = () => handlers.resume?.();
-    this.el.btnPauseMenu.onclick    = () => handlers.toMenu?.();
 
     const onToggleSound = () => { handlers.toggleSound?.(); this._syncSoundButtons(); };
     const onToggleVib = () => { handlers.toggleVibration?.(); this._syncSoundButtons(); };
