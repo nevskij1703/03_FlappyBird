@@ -41,8 +41,7 @@ export const CONFIG = {
   // === Реклама ===
   ads: {
     mockAds: true,                        // TODO: false — для боевого режима с реальной рекламой
-    interstitialAfterDeaths: 3,           // показывать каждую N-ную смерть
-    interstitialAfterLevels: 2,           // показывать после каждого N уровня
+    interstitialAfterDeaths: 3,           // показывать перед каждой N-ной попыткой (после стольких смертей подряд)
     firstAttemptsWithoutAds: 2,           // первые N попыток — без рекламы
     rewardedReviveEnabled: true,
     mockInterstitialSeconds: 2,
@@ -52,7 +51,6 @@ export const CONFIG = {
   // === Игровая экономика ===
   startingCoins: 0,
   reviveInvulnerabilitySeconds: 2,
-  levelReward: 10,
 
   // === Цвета фона / темы ===
   bg: {

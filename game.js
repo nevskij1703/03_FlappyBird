@@ -7,14 +7,13 @@ import { ObstacleField } from './obstacles.js';
 import { drawRocket } from './skins.js';
 import { Ads } from './ads.js';
 import { UI } from './ui.js';
-import { EndlessMode, LevelMode } from './modes.js';
+import { EndlessMode } from './modes.js';
 
 const STATE = Object.freeze({
   MENU: 'MENU',
   PLAYING: 'PLAYING',
   PAUSED: 'PAUSED',
   DEAD: 'DEAD',
-  LEVEL_WIN: 'LEVEL_WIN',
   AD: 'AD',
 });
 
@@ -101,7 +100,6 @@ export class Game {
       this.handleTap();
       e.preventDefault();
     };
-    // Pointer для тачскринов + мыши
     document.addEventListener('pointerdown', onTap, { passive: false });
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Space' || e.code === 'ArrowUp') {
@@ -116,19 +114,9 @@ export class Game {
 
   _bindUI() {
     this.ui.bind({
-      startEndless: () => this.startGame('endless'),
-      openLevelSelect: () => { this.state = STATE.MENU; this.ui.showLevelSelect(); },
-      startLevel: (id) => this.startGame('level', id),
+      startEndless: () => this.startGame(),
       revive: () => this.tryRevive(),
-      restart: () => {
-        if (this.mode.id === 'level') this.startGame('level', this.mode.getLevelId());
-        else this.startGame('endless');
-      },
-      nextLevel: () => {
-        const nextId = (this.mode.getLevelId?.() || 1) + 1;
-        if (nextId > 10) { this.ui.showStart(); this.state = STATE.MENU; return; }
-        this.startGame('level', nextId);
-      },
+      restart: () => this.startGame(),
       toMenu: () => this.toMenu(),
       pause: () => this.pause(),
       resume: () => this.resume(),
@@ -144,9 +132,24 @@ export class Game {
   }
 
   // === Стейт-переходы ===
-  startGame(modeId, levelId) {
-    if (modeId === 'level') this.mode = new LevelMode(levelId);
-    else this.mode = new EndlessMode();
+
+  // Точка входа в попытку. Сначала проверяет рекламу, потом запускает раунд.
+  async startGame() {
+    // Если уже показывается реклама — не запускаем повторно
+    if (this.state === STATE.AD) return;
+    Storage.increment('attempts');
+
+    if (Ads.shouldShowInterstitialBeforeAttempt()) {
+      this.state = STATE.AD;
+      // Скрываем все экраны, чтобы под рекламой не было game over screen
+      this.ui.hideAll();
+      await Ads.showInterstitialAd();
+      Ads.markInterstitialShown();
+    }
+    this._beginRound();
+  }
+
+  _beginRound() {
     this.player.y = this.h / 2;
     this.player.vy = 0;
     this.player.rotation = 0;
@@ -155,11 +158,11 @@ export class Game {
     this.reviveUsedThisAttempt = false;
     this.invulnerableUntil = 0;
     this.currentParams = this.mode.paramsForScore(0);
-    Storage.increment('attempts');
     this.state = STATE.PLAYING;
     this.ui.showHud();
     this.ui.updateScore(0);
     this.ui.updateBest(this.best);
+    this.lastTs = performance.now();
   }
 
   toMenu() {
@@ -182,11 +185,6 @@ export class Game {
 
   handleTap() {
     Audio.ensure();
-    if (this.state === STATE.MENU) {
-      // Тап по канвасу запускает endless (если стартовый экран открыт)
-      // но только если фокус не на оверлеях
-      return;
-    }
     if (this.state !== STATE.PLAYING) return;
     Physics.jump(this.player);
     Audio.playTap();
@@ -206,6 +204,8 @@ export class Game {
       this.reviveUsedThisAttempt = true;
       // Чистим ближайшие препятствия для безопасного рестарта
       this.obstacles.clearNear(this.player.x, 220);
+      // Возвращаем ракету в центр по высоте, чтобы revive был "безопасным рестартом"
+      this.player.y = this.h / 2;
       this.player.vy = CONFIG.jumpForce * 0.6;
       this.invulnerableUntil = performance.now() + CONFIG.reviveInvulnerabilitySeconds * 1000;
       this.state = STATE.PLAYING;
@@ -221,57 +221,23 @@ export class Game {
     Audio.vibrate(60);
     Storage.increment('deathsSinceAd');
 
-    const isNewRecord = this.mode.id === 'endless' && this.score > this.best;
+    const isNewRecord = this.score > this.best;
     if (isNewRecord) {
       this.best = this.score;
       Storage.set('bestScore', this.best);
+      // Небольшое торжество при новом рекорде
+      Audio.playWin();
     }
-    // Сохраняем для отложенного показа после фриза
+    // Сохраняем для отложенного показа после фриза. Реклама теперь не здесь, а перед след. попыткой.
     this.pendingGameOver = { score: this.score, best: this.best, isNewRecord };
     this.deathFreezeUntil = performance.now() + 350;
   }
 
-  async _afterDeathFreeze() {
-    // Проверка interstitial по правилам
-    if (Ads.shouldShowInterstitialOnDeath()) {
-      this.state = STATE.AD;
-      await Ads.showInterstitialAd();
-      Ads.markInterstitialShown('death');
-    }
+  _afterDeathFreeze() {
     const { score, best, isNewRecord } = this.pendingGameOver;
     this.pendingGameOver = null;
     this.ui.showGameOver(score, best, isNewRecord);
     this.state = STATE.DEAD;
-  }
-
-  win() {
-    if (this.state !== STATE.PLAYING || this.mode.id !== 'level') return;
-    this.state = STATE.LEVEL_WIN;
-    Audio.playWin();
-    Audio.playBuy();
-    Audio.vibrate([30, 60, 30]);
-
-    const id = this.mode.getLevelId();
-    Storage.addCompletedLevel(id);
-    const completedList = Storage.get('levelsCompleted') || [];
-    const nextLevel = Math.max(...completedList, 0) + 1;
-    Storage.set('currentLevel', nextLevel);
-    Storage.increment('coins', CONFIG.levelReward);
-    Storage.increment('levelsSinceAd');
-
-    // Interstitial по правилам
-    const showAd = Ads.shouldShowInterstitialOnLevelEnd();
-    const present = () => this.ui.showLevelWin(id, CONFIG.levelReward);
-    if (showAd) {
-      this.state = STATE.AD;
-      Ads.showInterstitialAd().then(() => {
-        Ads.markInterstitialShown('level');
-        this.state = STATE.LEVEL_WIN;
-        present();
-      });
-    } else {
-      present();
-    }
   }
 
   // === Tick ===
@@ -295,9 +261,6 @@ export class Game {
         this.ui.updateScore(this.score);
         Audio.playScore();
         Audio.vibrate(10);
-        if (this.mode.isWon({ score: this.score })) {
-          this.win();
-        }
       }
       // Коллизии
       const invulnerable = performance.now() < this.invulnerableUntil;
@@ -351,7 +314,7 @@ export class Game {
   }
 
   _updateStars(dt) {
-    // Едут только если игра идёт — иначе медленный эмбиент
+    // Едут быстрее если идёт игра, иначе медленный эмбиент
     const baseSpeed = this.state === STATE.PLAYING ? this.currentParams.speed * 0.5 : 0.4;
     for (const layer of this.stars) {
       for (const s of layer) {

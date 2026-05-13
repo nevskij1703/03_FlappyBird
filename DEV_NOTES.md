@@ -13,8 +13,7 @@
 | Звук (Web Audio синтез) | [`audio.js`](audio.js) — объект `Audio` |
 | Реклама + правила показа | [`ads.js`](ads.js) — объект `Ads`, класс `AdManager` |
 | Локальное хранилище | [`storage.js`](storage.js) — объект `Storage`, префикс `cosmo.` |
-| Конфиги уровней | [`levels.js`](levels.js) — массив `LEVELS` |
-| Режимы (Endless / Level) | [`modes.js`](modes.js) — `EndlessMode`, `LevelMode` |
+| Режим (Endless с плавной прогрессией) | [`modes.js`](modes.js) — `EndlessMode` |
 | Баланс и константы | [`config.js`](config.js) — `CONFIG` |
 
 ## Что важно НЕ ломать
@@ -25,12 +24,13 @@
 
 ### 2. Правила показа рекламы
 
-В [`ads.js`](ads.js) методы `shouldShowInterstitialOnDeath()` и `shouldShowInterstitialOnLevelEnd()` — это договор с UX:
+В [`ads.js`](ads.js) метод `shouldShowInterstitialBeforeAttempt()` — это договор с UX:
 
 - Первые `firstAttemptsWithoutAds` попыток (по умолчанию 2) — без interstitial.
-- Затем — каждые `interstitialAfterDeaths` смертей (по умолчанию 3).
-- Между уровнями — каждые `interstitialAfterLevels` пройденных (по умолчанию 2).
+- После — interstitial показывается **перед началом** следующей попытки, если `deathsSinceAd ≥ interstitialAfterDeaths` (по умолчанию 3).
 - **Rewarded запускается ТОЛЬКО по тапу игрока** (`tryRevive` в `game.js`). Никогда автоматически.
+
+**Важно**: проверка происходит в `Game.startGame()` ПОСЛЕ `Storage.increment('attempts')`, но ДО `_beginRound()`. Это даёт UX: игрок видит свой game over screen без задержки, потом кликает «Играть снова» → реклама → новая попытка.
 
 ### 3. Game loop dt-нормализация
 
@@ -64,24 +64,23 @@ const dt = rawDt / 16.67;
             │   MENU   │←──────────────────┐
             └────┬─────┘                   │
               start                        │
-            ┌────▼─────┐  pause   ┌──────────┐
+            ┌────▼─────┐                   │
+            │    AD    │ (interstitial,    │
+            └────┬─────┘  если выпало)     │
+                 ▼                          │
+            ┌──────────┐  pause   ┌──────────┐
             │ PLAYING  │─────────►│  PAUSED  │
             └────┬─────┘  resume  └────┬─────┘
               die│             ▲       │
                  ▼             └───────┘
             ┌──────────┐
-            │   DEAD   │──revive──► PLAYING (с invulnerability 2с)
+            │   DEAD   │──revive──► AD (rewarded) ──► PLAYING (с invulnerability 2с)
             └────┬─────┘
-                 ├─restart─────► PLAYING
+                 ├─restart─────► AD? ──► PLAYING (next attempt)
                  └─menu────────► MENU
-
-            (LevelMode only)
-            ┌─────────────┐
-            │  LEVEL_WIN  │─next─► PLAYING (next level)
-            └─────────────┘
 ```
 
-Между `DEAD` и `gameover screen` может быть `AD` (interstitial по правилам).
+Ключевое отличие от старой архитектуры: interstitial теперь между `DEAD` и следующим `PLAYING`, а не между `DEAD` и `gameover screen`.
 
 ## Как игра упаковывается в APK
 
@@ -106,6 +105,7 @@ const dt = rawDt / 16.67;
 - `window.__game` — экспорт игры для DevTools console. Можно `__game.state`, `__game.score`, `__game.player`, и т.д.
 - `localStorage.clear()` или `Storage.resetAll()` — сброс всего прогресса.
 - В Chrome DevTools mobile mode (iPhone 12) — портретный режим для проверки.
+- `requestAnimationFrame` останавливается при скрытой вкладке — это нормальное поведение браузера.
 
 ## Производительность
 

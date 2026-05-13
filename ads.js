@@ -43,7 +43,7 @@ class AdManager {
     });
   }
 
-  // Interstitial — блокирующая реклама между раундами.
+  // Interstitial — блокирующая реклама перед стартом следующей попытки.
   async showInterstitialAd() {
     if (this.busy) return;
     this.busy = true;
@@ -94,22 +94,17 @@ class AdManager {
   }
 
   // === Правила показа ===
-  shouldShowInterstitialOnDeath() {
+  // Вызывать в начале новой попытки (после увеличения attempts).
+  shouldShowInterstitialBeforeAttempt() {
     const attempts = Storage.get('attempts') || 0;
     if (attempts <= CONFIG.ads.firstAttemptsWithoutAds) return false;
     const deathsSinceAd = Storage.get('deathsSinceAd') || 0;
     return deathsSinceAd >= CONFIG.ads.interstitialAfterDeaths;
   }
 
-  shouldShowInterstitialOnLevelEnd() {
-    const lvlSinceAd = Storage.get('levelsSinceAd') || 0;
-    return lvlSinceAd >= CONFIG.ads.interstitialAfterLevels;
-  }
-
-  // Сбрасывают счётчики после показа.
-  markInterstitialShown(type) {
-    if (type === 'death') Storage.set('deathsSinceAd', 0);
-    if (type === 'level') Storage.set('levelsSinceAd', 0);
+  // Сбрасывает счётчик смертей после показа interstitial.
+  markInterstitialShown() {
+    Storage.set('deathsSinceAd', 0);
   }
 }
 

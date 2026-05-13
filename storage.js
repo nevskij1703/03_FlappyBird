@@ -7,9 +7,6 @@ const DEFAULTS = {
   bestScore: 0,
   attempts: 0,
   deathsSinceAd: 0,
-  levelsSinceAd: 0,
-  currentLevel: 1,
-  levelsCompleted: [],
   soundOn: true,
   vibrationOn: true,
   skin: 'default',
@@ -61,14 +58,5 @@ export const Storage = {
     const v = !read(key);
     write(key, v);
     return v;
-  },
-  // Добавить уровень в список пройденных, если ещё нет
-  addCompletedLevel(id) {
-    const list = read('levelsCompleted') || [];
-    if (!list.includes(id)) {
-      list.push(id);
-      write('levelsCompleted', list);
-    }
-    return list;
   },
 };
