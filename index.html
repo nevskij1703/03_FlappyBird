@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0e2a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Космо-Полёт</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <canvas id="game"></canvas>
+
+      <!-- HUD -->
+      <div id="hud" class="hidden">
+        <button id="btn-pause" class="hud-btn" aria-label="Пауза">⏸</button>
+        <div id="hud-score">0</div>
+        <div id="hud-best">★ 0</div>
+      </div>
+
+      <!-- Стартовый экран -->
+      <div id="screen-start" class="screen">
+        <h1 class="title">КОСМО<br>ПОЛЁТ</h1>
+        <div class="best-line">Рекорд: <span id="start-best">0</span></div>
+        <div class="hint">Нажми, чтобы лететь</div>
+        <div class="btn-stack">
+          <button id="btn-mode-endless" class="btn btn-primary">БЕСКОНЕЧНЫЙ</button>
+          <button id="btn-mode-levels" class="btn btn-secondary">УРОВНИ</button>
+        </div>
+        <div class="settings-row">
+          <button id="btn-sound" class="icon-btn" aria-label="Звук">🔊</button>
+          <button id="btn-vibration" class="icon-btn" aria-label="Вибрация">📳</button>
+        </div>
+      </div>
+
+      <!-- Экран проигрыша -->
+      <div id="screen-gameover" class="screen hidden">
+        <h2 class="screen-title">ПРОИГРЫШ</h2>
+        <div id="gameover-newrecord" class="record-flash hidden">Новый рекорд!</div>
+        <div class="score-big">
+          <div class="score-label">Очки</div>
+          <div id="gameover-score" class="score-value">0</div>
+        </div>
+        <div class="best-line">Рекорд: <span id="gameover-best">0</span></div>
+        <div class="btn-stack">
+          <button id="btn-revive" class="btn btn-primary">▶ ПРОДОЛЖИТЬ ЗА РЕКЛАМУ</button>
+          <button id="btn-restart" class="btn btn-secondary">↻ ИГРАТЬ СНОВА</button>
+          <button id="btn-menu" class="btn btn-ghost">☰ МЕНЮ</button>
+        </div>
+      </div>
+
+      <!-- Экран победы в уровне -->
+      <div id="screen-levelwin" class="screen hidden">
+        <h2 class="screen-title">УРОВЕНЬ ПРОЙДЕН</h2>
+        <div id="levelwin-num" class="level-num">Уровень 1</div>
+        <div class="score-big">
+          <div class="score-label">Награда</div>
+          <div id="levelwin-reward" class="score-value">+10 ⛂</div>
+        </div>
+        <div class="btn-stack">
+          <button id="btn-next-level" class="btn btn-primary">ДАЛЬШЕ →</button>
+          <button id="btn-levelwin-menu" class="btn btn-ghost">☰ МЕНЮ</button>
+        </div>
+      </div>
+
+      <!-- Экран выбора уровня -->
+      <div id="screen-levelselect" class="screen hidden">
+        <h2 class="screen-title">УРОВНИ</h2>
+        <div id="level-grid" class="level-grid"></div>
+        <div class="btn-stack">
+          <button id="btn-levels-back" class="btn btn-ghost">☰ НАЗАД</button>
+        </div>
+      </div>
+
+      <!-- Экран паузы -->
+      <div id="screen-pause" class="screen hidden">
+        <h2 class="screen-title">ПАУЗА</h2>
+        <div class="btn-stack">
+          <button id="btn-resume" class="btn btn-primary">ПРОДОЛЖИТЬ</button>
+          <button id="btn-pause-menu" class="btn btn-ghost">☰ В МЕНЮ</button>
+        </div>
+        <div class="settings-row">
+          <button id="btn-sound-pause" class="icon-btn" aria-label="Звук">🔊</button>
+          <button id="btn-vibration-pause" class="icon-btn" aria-label="Вибрация">📳</button>
+        </div>
+      </div>
+
+      <!-- Реклама (mock overlay) -->
+      <div id="ad-overlay" class="ad hidden">
+        <div class="ad-card">
+          <div id="ad-title" class="ad-title">Реклама</div>
+          <div id="ad-timer" class="ad-timer">3</div>
+          <div class="ad-hint">Закроется автоматически</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
