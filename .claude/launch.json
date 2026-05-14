@@ -4,8 +4,8 @@
     {
       "name": "cosmo-static",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "5173"],
-      "port": 5173
+      "runtimeArgs": ["server.py", "8773"],
+      "port": 8773
     }
   ]
 }
