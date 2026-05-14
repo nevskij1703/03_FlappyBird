@@ -1,13 +1,23 @@
 // obstacles.js — астероидные пояса с одним широким коридором.
-// Каждый "пояс" — вертикальная колонна круглых астероидов разного размера,
-// в которой есть один заметно широкий просвет (коридор для зонда). Между
-// мелкими астероидами могут оставаться зазоры, но они уже размера зонда —
-// игрок должен пролетать через ШИРОКИЙ просвет, а не лавировать.
+// Каждый "пояс" — хаотичная россыпь круглых астероидов разного размера,
+// между которыми есть один заметный широкий просвет (коридор). Мелкие зазоры
+// между астероидами выглядят почти проходимыми, но всё-таки чуть уже хитбокса
+// зонда — лететь надо именно через ШИРОКИЙ просвет.
 //
 // Инвариант "честной" генерации: разница gapY между двумя соседними поясами
 // ограничена CONFIG.difficultyGrowth.maxGapDelta — иначе после быстрой
 // смены направления зонд просто не успеет.
 import { CONFIG } from './config.js';
+
+// Локальная ширина пояса — чуть шире, чем CONFIG.obstacleWidth, чтобы
+// горизонтальный разброс астероидов давал ощущение хаоса, а не нити.
+const BELT_WIDTH = 112;
+
+// Первые 3 пояса каждого забега — облегчённый коридор.
+// belt 0: ×2.0, belt 1: ×1.5, belt 2+: ×1.0.
+function beltStartMul(beltIdx) {
+  return Math.max(1, 2 - beltIdx * 0.5);
+}
 
 export class ObstacleField {
   constructor(width, height) {
@@ -15,16 +25,23 @@ export class ObstacleField {
     this.h = height;
     this.list = [];
     this.lastGapY = height / 2;
+    this.beltsSpawned = 0;
   }
 
   reset() {
     this.list.length = 0;
     this.lastGapY = this.h / 2;
+    this.beltsSpawned = 0;
   }
 
   // Спавнит новый пояс справа за экраном.
   spawn(currentGap) {
-    const margin = CONFIG.obstacleMinMargin + currentGap / 2;
+    // Первые пояса забега — облегчённый коридор для разгона
+    const beltIdx = this.beltsSpawned;
+    const effectiveGap = currentGap * beltStartMul(beltIdx);
+    this.beltsSpawned = beltIdx + 1;
+
+    const margin = CONFIG.obstacleMinMargin + effectiveGap / 2;
     const minY = margin;
     const maxY = this.h - margin;
     const maxDelta = CONFIG.difficultyGrowth.maxGapDelta;
@@ -36,50 +53,59 @@ export class ObstacleField {
     this.lastGapY = gapY;
 
     const beltX = this.w + 30;
-    const beltWidth = CONFIG.obstacleWidth; // визуальная ширина пояса по горизонтали
-    const corridorHalf = currentGap / 2;
+    const corridorHalf = effectiveGap / 2;
     const topEnd = gapY - corridorHalf;
     const botStart = gapY + corridorHalf;
 
     const asteroids = [];
-    // Верхняя секция: от потолка до края коридора
-    this._fillSection(asteroids, beltX, beltWidth, 18, topEnd);
-    // Нижняя секция: от края коридора до пола
-    this._fillSection(asteroids, beltX, beltWidth, botStart, this.h - 18);
+    this._fillSection(asteroids, beltX, 18, topEnd);
+    this._fillSection(asteroids, beltX, botStart, this.h - 18);
 
     this.list.push({
       x: beltX,
       gapY,
-      gapHeight: currentGap,
-      width: beltWidth,
+      gapHeight: effectiveGap,
+      width: BELT_WIDTH,
       asteroids,
       passed: false,
     });
   }
 
-  // Заполняет вертикальную секцию столбиком астероидов разного размера.
-  // Между соседними астероидами оставляем небольшие промежутки 8-16px —
-  // вроде "вот тут можно проскочить", но реально игрок туда не пройдёт.
-  _fillSection(asteroids, beltX, beltWidth, fromY, toY) {
-    if (toY - fromY < 22) return;
-    let cy = fromY + 10 + Math.random() * 6;
-    while (cy < toY - 10) {
-      // Радиус 9..22 — мелкие астероиды
-      const r = 9 + Math.random() * 13;
-      // Если астероид не помещается до конца секции — выходим
+  // Заполняет вертикальную секцию хаотичной россыпью астероидов.
+  // - Горизонтальный разброс — почти на всю ширину пояса.
+  // - Радиусы 7..24, заметная разница в размерах.
+  // - Иногда астероиды идут тесной группой (cluster), иногда — с большим зазором.
+  // - Лёгкая вертикальная случайность в положении, чтобы не выстраивались в нить.
+  _fillSection(asteroids, beltX, fromY, toY) {
+    if (toY - fromY < 25) return;
+    const halfBelt = BELT_WIDTH / 2;
+    let cy = fromY + 6 + Math.random() * 14;
+
+    while (cy < toY - 8) {
+      const r = 7 + Math.random() * 17; // 7..24
       if (cy + r > toY) break;
-      // Лёгкое горизонтальное смещение в пределах пояса
-      const jitterMax = Math.max(0, (beltWidth / 2) - r - 2);
-      const cx = beltX + (Math.random() - 0.5) * 2 * jitterMax;
+
+      // Горизонтальное смещение — почти весь пояс
+      const maxOffset = Math.max(8, halfBelt - r * 0.55);
+      const cx = beltX + (Math.random() - 0.5) * 2 * maxOffset;
+
+      // Лёгкая вертикальная случайность с учётом границ секции
+      const vJitterMax = Math.min(5, (toY - cy - r) * 0.5, (cy - fromY - r) * 0.5);
+      const cyJit = vJitterMax > 0 ? (Math.random() - 0.5) * 2 * vJitterMax : 0;
+
       asteroids.push({
         cx,
-        cy,
+        cy: cy + cyJit,
         r,
         rotation: Math.random() * Math.PI * 2,
         seed: Math.floor(Math.random() * 1e6),
       });
-      // Зазор между астероидами — "ложный" проход
-      const gapBetween = 8 + Math.random() * 9;
+
+      // Шаг по вертикали — иногда тесный кластер, иногда заметный зазор
+      const tightCluster = Math.random() < 0.32;
+      const gapBetween = tightCluster
+        ? 3 + Math.random() * 5     // 3..8 — тесная группа
+        : 12 + Math.random() * 10;  // 12..22 — «ложный» проход
       cy += r + gapBetween;
     }
   }
@@ -91,14 +117,12 @@ export class ObstacleField {
       belt.x -= dx;
       for (const a of belt.asteroids) a.cx -= dx;
     }
-    // Удаляем ушедшие за экран
     while (
       this.list.length &&
       this.list[0].x + this.list[0].width / 2 + 30 < 0
     ) {
       this.list.shift();
     }
-    // Спавним при необходимости
     const last = this.list[this.list.length - 1];
     if (!last || last.x < this.w - currentSpacing) {
       this.spawn(currentGap);
@@ -109,10 +133,8 @@ export class ObstacleField {
   checkCollision(hb) {
     const hbCx = hb.x + hb.w / 2;
     for (const belt of this.list) {
-      // Грубый отсев — если пояс далеко от игрока, пропускаем
       if (Math.abs(belt.x - hbCx) > belt.width / 2 + 80) continue;
       for (const a of belt.asteroids) {
-        // Ближайшая точка прямоугольника к центру окружности
         const closestX = Math.max(hb.x, Math.min(a.cx, hb.x + hb.w));
         const closestY = Math.max(hb.y, Math.min(a.cy, hb.y + hb.h));
         const dx = a.cx - closestX;
@@ -142,38 +164,15 @@ export class ObstacleField {
 
   render(ctx) {
     for (const belt of this.list) {
-      this._renderBelt(ctx, belt);
-    }
-  }
-
-  _renderBelt(ctx, belt) {
-    const top = belt.gapY - belt.gapHeight / 2;
-    const bot = belt.gapY + belt.gapHeight / 2;
-    const markerX = belt.x - belt.width / 2 - 4;
-    const markerW = belt.width + 8;
-
-    // Подсветка коридора — неоновые cyan-полосы сверху и снизу прохода
-    const g1 = ctx.createLinearGradient(0, top - 8, 0, top + 1);
-    g1.addColorStop(0, 'rgba(0,220,255,0)');
-    g1.addColorStop(1, 'rgba(0,220,255,0.9)');
-    ctx.fillStyle = g1;
-    ctx.fillRect(markerX, top - 8, markerW, 8);
-
-    const g2 = ctx.createLinearGradient(0, bot, 0, bot + 8);
-    g2.addColorStop(0, 'rgba(0,220,255,0.9)');
-    g2.addColorStop(1, 'rgba(0,220,255,0)');
-    ctx.fillStyle = g2;
-    ctx.fillRect(markerX, bot, markerW, 8);
-
-    // Сами астероиды
-    for (const a of belt.asteroids) {
-      this._drawAsteroid(ctx, a);
+      for (const a of belt.asteroids) {
+        this._drawAsteroid(ctx, a);
+      }
     }
   }
 
   _drawAsteroid(ctx, a) {
     const { cx, cy, r, seed } = a;
-    // Основное тело — мягкий радиальный градиент, чтобы выглядел объёмным
+    // Основное тело — мягкий радиальный градиент
     const grad = ctx.createRadialGradient(
       cx - r * 0.4, cy - r * 0.4, r * 0.15,
       cx, cy, r
@@ -204,7 +203,7 @@ export class ObstacleField {
       ctx.arc(cx + Math.cos(ang) * dist, cy + Math.sin(ang) * dist, cr, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Лёгкий блик с теневой стороны (солнечная сторона)
+    // Лёгкий блик с солнечной стороны
     ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.beginPath();
     ctx.arc(cx - r * 0.45, cy - r * 0.45, r * 0.25, 0, Math.PI * 2);

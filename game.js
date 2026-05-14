@@ -611,6 +611,16 @@ export class Game {
       // Уже DEAD, но частицы ещё долетают
       this._renderExplosion(ctx);
     }
+
+    // Затемнение нижней четверти — чтобы фразы нарратива читались лучше.
+    // Рисуется поверх всего на канвасе, но НИЖЕ DOM-узла .narrative (тот z-index:4).
+    const fadeStart = this.h * 0.74;
+    const fadeGrad = ctx.createLinearGradient(0, fadeStart, 0, this.h);
+    fadeGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    fadeGrad.addColorStop(0.55, 'rgba(0, 0, 0, 0.35)');
+    fadeGrad.addColorStop(1, 'rgba(0, 0, 0, 0.62)');
+    ctx.fillStyle = fadeGrad;
+    ctx.fillRect(0, fadeStart, this.w, this.h - fadeStart);
   }
 
   // Рендер взрыва: сначала дым (сзади), потом обломки, потом огонь, потом вспышка.
