@@ -453,42 +453,20 @@ export class Game {
     }
   }
 
-  // === Большие фоновые космические объекты (планеты, туманности) ===
+  // === Большие фоновые космические объекты (туманности + маленькая планета) ===
   _makeCosmic() {
     // Малоконтрастные фоновые объекты. Двигаются заметно медленнее звёзд.
     return [
-      // Огромный газовый гигант с полосами (Юпитер-подобный) — нижний-правый
-      { type: 'gasGiant', x: this.w * 0.85, y: this.h * 0.88, r: 230,
-        bgColor: 'rgba(36, 26, 18, 0.20)',
-        bands: [
-          { y: 0.08, color: 'rgba(180, 140,  95, 0.14)' },
-          { y: 0.18, color: 'rgba(130,  92,  62, 0.18)' },
-          { y: 0.30, color: 'rgba(205, 165, 115, 0.15)' },
-          { y: 0.42, color: 'rgba(115,  82,  55, 0.20)' },
-          { y: 0.54, color: 'rgba(170, 135, 100, 0.16)' },
-          { y: 0.68, color: 'rgba(105,  75,  50, 0.18)' },
-          { y: 0.82, color: 'rgba(160, 125,  90, 0.14)' },
-        ],
-        dx: -0.022 },
-      // Окольцованная планета (Сатурн-подобная) — верхний-левый
-      { type: 'ringedPlanet', x: this.w * 0.20, y: this.h * 0.15, r: 110,
-        ringTilt: -0.34,
-        bodyColor1: 'rgba(220, 195, 145, 0.20)',
-        bodyColor2: 'rgba(140, 110,  70, 0.14)',
-        bodyColor3: 'rgba(60,  40,  20, 0.06)',
-        ringColor:  'rgba(225, 200, 150, 0.18)',
-        ringInner:  'rgba(130, 100,  60, 0.10)',
-        dx: -0.018 },
       // Маленькая планета-спутник вдалеке
-      { type: 'planet', x: this.w * 1.4, y: this.h * 0.32, r: 55,
+      { x: this.w * 1.4, y: this.h * 0.32, r: 55,
         c1: 'rgba(255, 210, 140, 0.20)', c2: 'rgba(120,  60,  30, 0.10)', c3: 'rgba(40, 20, 10, 0)',
         dx: -0.04 },
       // Туманность мажента по центру
-      { type: 'nebula', x: this.w * 0.5, y: this.h * 0.45, r: 240,
+      { x: this.w * 0.5, y: this.h * 0.45, r: 240,
         c1: 'rgba(220, 80, 180, 0.08)', c2: 'rgba(100, 30, 120, 0.04)', c3: 'rgba(20, 10, 40, 0)',
         dx: -0.014 },
       // Бирюзовая туманность далеко
-      { type: 'nebula', x: this.w * 1.2, y: this.h * 0.65, r: 200,
+      { x: this.w * 1.2, y: this.h * 0.65, r: 200,
         c1: 'rgba(80, 200, 220, 0.08)', c2: 'rgba(30, 100, 140, 0.04)', c3: 'rgba(10, 40, 60, 0)',
         dx: -0.014 },
     ];
@@ -504,119 +482,18 @@ export class Game {
 
   _renderCosmic(ctx) {
     for (const o of this.cosmic) {
-      if (o.type === 'gasGiant') this._drawGasGiant(ctx, o);
-      else if (o.type === 'ringedPlanet') this._drawRingedPlanet(ctx, o);
-      else this._drawSimpleOrb(ctx, o);
+      const grad = ctx.createRadialGradient(
+        o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.05,
+        o.x, o.y, o.r
+      );
+      grad.addColorStop(0, o.c1);
+      grad.addColorStop(0.5, o.c2);
+      grad.addColorStop(1, o.c3);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+      ctx.fill();
     }
-  }
-
-  // Простой радиальный объект (туманность, маленькая планета)
-  _drawSimpleOrb(ctx, o) {
-    const grad = ctx.createRadialGradient(
-      o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.05,
-      o.x, o.y, o.r
-    );
-    grad.addColorStop(0, o.c1);
-    grad.addColorStop(0.5, o.c2);
-    grad.addColorStop(1, o.c3);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Газовый гигант с горизонтальными полосами (Юпитер-подобный).
-  _drawGasGiant(ctx, o) {
-    ctx.save();
-    // Клипуем по кругу — всё, что нарисуем дальше, окажется внутри планеты.
-    ctx.beginPath();
-    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
-    ctx.clip();
-
-    // Фоновая заливка
-    ctx.fillStyle = o.bgColor;
-    ctx.fillRect(o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
-
-    // Полосы — мягкие горизонтальные градиенты, перетекают друг в друга
-    const diameter = o.r * 2;
-    for (const band of o.bands) {
-      const cy = o.y - o.r + band.y * diameter;
-      const bandH = diameter * 0.13;
-      const g = ctx.createLinearGradient(0, cy - bandH * 0.5, 0, cy + bandH * 0.5);
-      g.addColorStop(0,   'rgba(0,0,0,0)');
-      g.addColorStop(0.5, band.color);
-      g.addColorStop(1,   'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(o.x - o.r, cy - bandH * 0.5, diameter, bandH);
-    }
-
-    // Объём: лёгкое освещение слева-сверху + тёмный край справа-снизу.
-    const edge = ctx.createRadialGradient(
-      o.x - o.r * 0.35, o.y - o.r * 0.35, 0,
-      o.x, o.y, o.r
-    );
-    edge.addColorStop(0,    'rgba(255, 240, 200, 0.05)');
-    edge.addColorStop(0.55, 'rgba(0, 0, 0, 0)');
-    edge.addColorStop(1,    'rgba(0, 0, 0, 0.30)');
-    ctx.fillStyle = edge;
-    ctx.fillRect(o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
-
-    ctx.restore();
-  }
-
-  // Кольцевая планета (Сатурн-подобная) с правильным порядком слоёв:
-  // задняя часть кольца → корпус → передняя часть кольца.
-  _drawRingedPlanet(ctx, o) {
-    const { x, y, r, ringTilt } = o;
-    const ringRx = r * 1.95;
-    const ringRy = r * 0.42;
-
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(ringTilt);
-
-    // 1) Задняя половина кольца — клип по верхней половине локальных координат
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(-ringRx - 8, -ringRy - 8, ringRx * 2 + 16, ringRy + 8);
-    ctx.clip();
-    this._strokeRing(ctx, ringRx, ringRy, o.ringColor, o.ringInner);
-    ctx.restore();
-
-    // 2) Корпус планеты
-    const grad = ctx.createRadialGradient(-r * 0.32, -r * 0.32, 0, 0, 0, r);
-    grad.addColorStop(0,    o.bodyColor1);
-    grad.addColorStop(0.55, o.bodyColor2);
-    grad.addColorStop(1,    o.bodyColor3);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 3) Передняя половина кольца — клип по нижней половине
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(-ringRx - 8, 0, ringRx * 2 + 16, ringRy + 8);
-    ctx.clip();
-    this._strokeRing(ctx, ringRx, ringRy, o.ringColor, o.ringInner);
-    ctx.restore();
-
-    ctx.restore();
-  }
-
-  _strokeRing(ctx, rx, ry, mainColor, innerColor) {
-    // Внешнее кольцо — толстый штрих
-    ctx.strokeStyle = mainColor;
-    ctx.lineWidth = ry * 0.5;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    // Внутренний разделитель (зазор Кассини)
-    ctx.strokeStyle = innerColor;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx * 0.88, ry * 0.88, 0, 0, Math.PI * 2);
-    ctx.stroke();
   }
 
   // === Падающие звёзды ===
