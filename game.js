@@ -32,9 +32,13 @@ export class Game {
     this.ctx = canvas.getContext('2d', { alpha: false });
     this.w = CONFIG.canvasLogicalWidth;
     this.h = CONFIG.canvasLogicalHeight;
-    canvas.width = this.w;
-    canvas.height = this.h;
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Поднимаем backing store до physical-DPI, чтобы Canvas не размывался
+    // при CSS-растяжении на hi-DPI экранах. Всё игровое API оперирует
+    // логическими координатами — ctx.scale(dpr, dpr) делает их совместимыми.
+    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = this.w * this.dpr;
+    canvas.height = this.h * this.dpr;
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this._fitCanvas();
 
     this.player = {
