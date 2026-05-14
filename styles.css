@@ -206,6 +206,23 @@ button {
   left: 14px;
 }
 
+/* Кнопка в верхнем-правом углу (переключатель языка на старте) */
+.corner-tr {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: auto;          /* перебиваем left:14px из .hud-btn */
+  right: 14px;
+}
+
+/* Текстовая корнер-кнопка: RU / ENG */
+.lang-btn {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #80e8ff;
+  text-shadow: 0 0 8px rgba(0, 220, 255, 0.55);
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

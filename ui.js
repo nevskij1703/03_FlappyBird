@@ -13,6 +13,7 @@ export class UI {
       startBest: document.getElementById('start-best'),
       btnEndless: document.getElementById('btn-mode-endless'),
       btnSound: document.getElementById('btn-sound'),
+      btnLang: document.getElementById('btn-lang'),
 
       gameover: document.getElementById('screen-gameover'),
       gameoverScore: document.getElementById('gameover-score'),
@@ -141,10 +142,17 @@ export class UI {
   }
 
   _syncLangButton() {
-    if (!this.el.btnLangPause) return;
-    const lang = (Storage.get('lang') || 'ru').toUpperCase();
-    const t = this.el.btnLangPause.querySelector('.toggle-text');
-    if (t) t.textContent = lang;
+    const lang = Storage.get('lang') || 'ru';
+    const label = lang === 'ru' ? 'RU' : 'ENG';
+    // Корнер-кнопка на стартовом экране
+    if (this.el.btnLang) {
+      this.el.btnLang.textContent = label;
+    }
+    // Пилюля в окне паузы
+    if (this.el.btnLangPause) {
+      const t = this.el.btnLangPause.querySelector('.toggle-text');
+      if (t) t.textContent = label;
+    }
   }
 
   // Game подаёт колбэки, UI подвешивает на все кнопки.
@@ -159,9 +167,8 @@ export class UI {
     const onToggleSound = () => { handlers.toggleSound?.(); this._syncSoundButtons(); };
     setClick(this.el.btnSound, onToggleSound);
     setClick(this.el.btnSoundPause, onToggleSound);
-    setClick(this.el.btnLangPause, () => {
-      handlers.toggleLang?.();
-      this._syncLangButton();
-    });
+    const onToggleLang = () => { handlers.toggleLang?.(); this._syncLangButton(); };
+    setClick(this.el.btnLang, onToggleLang);
+    setClick(this.el.btnLangPause, onToggleLang);
   }
 }
