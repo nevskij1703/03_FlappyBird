@@ -129,16 +129,14 @@ export class UI {
 
   _syncSoundButtons() {
     const sound = Storage.get('soundOn') !== false;
-    // Иконка в верхнем левом углу старта
+    // Иконка в верхнем левом углу старта — диагональная полоса через ::after
     if (this.el.btnSound) {
       this.el.btnSound.classList.toggle('off', !sound);
     }
-    // Текстовая пилюля в паузе
+    // Слайдер-тоггл в паузе: .off → кружочек слева
     if (this.el.btnSoundPause) {
       this.el.btnSoundPause.classList.toggle('off', !sound);
-      const t = this.el.btnSoundPause.querySelector('.toggle-text');
-      if (t) t.textContent = sound ? 'ВКЛ' : 'ВЫКЛ';
-      this.el.btnSoundPause.setAttribute('aria-pressed', String(sound));
+      this.el.btnSoundPause.setAttribute('aria-checked', String(sound));
     }
   }
 

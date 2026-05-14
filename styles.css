@@ -99,6 +99,31 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25),
               0 0 22px rgba(0, 220, 255, 0.55);
 }
+/* Состояние "выключено" — диагональная красная полоса, тусклый цвет.
+   Класс .off ставится UI-классом при выключенном звуке. */
+.hud-btn.off {
+  color: #5a6678;
+  background: rgba(20, 24, 40, 0.55);
+  border-color: rgba(100, 120, 140, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.hud-btn.off svg {
+  filter: none;
+  opacity: 0.55;
+}
+.hud-btn.off::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 3px;
+  background: #ff5577;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(255, 85, 119, 0.7);
+  pointer-events: none;
+}
 
 #hud-score {
   position: absolute;
@@ -156,6 +181,15 @@ button {
   -webkit-backdrop-filter: blur(1px);
 }
 #screen-start .btn-stack { margin-top: auto; }
+
+/* Пауза: ПАУЗА — на том же месте, что и ВОЯДЖЕР 1; ПРОДОЛЖИТЬ — где ИГРАТЬ. */
+#screen-pause {
+  justify-content: flex-start;
+  padding: 22% 24px 14% 24px;
+}
+#screen-pause .pause-stats { margin-top: 18px; }
+#screen-pause .settings-list { margin-top: 28px; }
+#screen-pause .btn-stack { margin-top: auto; }
 
 /* Кнопка в верхнем-левом углу (звук на старте; пауза во время игры) */
 .corner-tl {
@@ -397,6 +431,45 @@ button {
   color: #5a6678;
   background: rgba(20, 24, 40, 0.5);
   border-color: rgba(100, 120, 140, 0.3);
+}
+
+/* Слайдер-тоггл (для звука): кружочек слева = выкл, справа = вкл */
+.toggle-switch {
+  position: relative;
+  width: 62px;
+  height: 32px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(0, 220, 255, 0.6);
+  background: rgba(0, 200, 255, 0.30);
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.22s ease, border-color 0.22s ease;
+  flex-shrink: 0;
+}
+.toggle-switch.off {
+  background: rgba(20, 24, 40, 0.55);
+  border-color: rgba(100, 120, 140, 0.35);
+}
+.toggle-knob {
+  position: absolute;
+  top: 50%;
+  left: 33px; /* по умолчанию — справа (звук включён) */
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 220, 255, 0.7),
+              0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.22s ease,
+              box-shadow 0.22s ease;
+  pointer-events: none;
+}
+.toggle-switch.off .toggle-knob {
+  left: 3px; /* выкл — слева */
+  background: #7a8090;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* ============ Settings icons ============ */
