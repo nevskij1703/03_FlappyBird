@@ -13,10 +13,12 @@ import { CONFIG } from './config.js';
 // горизонтальный разброс астероидов давал ощущение хаоса, а не нити.
 const BELT_WIDTH = 112;
 
-// Первые 3 пояса каждого забега — облегчённый коридор.
-// belt 0: ×2.0, belt 1: ×1.5, belt 2+: ×1.0.
+// Первые ~10 поясов каждого забега — облегчённый коридор, плавный линейный
+// спуск к стандартной ширине.
+// belt 0: ×2.0  →  belt 10: ×1.0  →  belt 11+: ×1.0
+const STARTER_RAMP_BELTS = 10;
 function beltStartMul(beltIdx) {
-  return Math.max(1, 2 - beltIdx * 0.5);
+  return Math.max(1, 2 - beltIdx / STARTER_RAMP_BELTS);
 }
 
 export class ObstacleField {
