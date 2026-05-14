@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Космо-Полёт</title>
+  <title>Вояджер 1</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -27,9 +27,14 @@
         <div id="hud-best">Рекорд: 0</div>
       </div>
 
+      <!-- Нарратив: философские фразы, появляются по очереди во время игры -->
+      <div id="narrative" class="narrative hidden">
+        <div id="narrative-text" class="narrative-text"></div>
+      </div>
+
       <!-- Стартовый экран -->
       <div id="screen-start" class="screen">
-        <h1 class="title">КОСМО<br>ПОЛЁТ</h1>
+        <h1 class="title">ВОЯДЖЕР&nbsp;<span class="title-num">1</span></h1>
         <div class="best-line">Рекорд: <span id="start-best">0</span></div>
         <div class="hint">Тап — пшик: 1-й вверх, 2-й вниз</div>
         <div class="btn-stack">

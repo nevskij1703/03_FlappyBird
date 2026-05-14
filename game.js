@@ -8,6 +8,7 @@ import { drawProbe } from './skins.js';
 import { Ads } from './ads.js';
 import { UI } from './ui.js';
 import { EndlessMode } from './modes.js';
+import { NARRATIVE_LINES } from './narrative.js';
 
 const STATE = Object.freeze({
   MENU: 'MENU',
@@ -60,8 +61,17 @@ export class Game {
     this.invulnerableUntil = 0;
     this.pendingGameOver = null;
 
-    // Parallax stars: 3 слоя
+    // Parallax stars: 3 слоя (большинство — статичные точки, лишь часть мерцает)
     this.stars = this._makeStars();
+    // Большие фоновые объекты — планеты, туманности
+    this.cosmic = this._makeCosmic();
+
+    // Нарратив (DOM-тикер философских фраз внизу)
+    this.narrativeEl = document.getElementById('narrative');
+    this.narrativeText = document.getElementById('narrative-text');
+    this.narrativeIdx = 0;
+    this.narrativeLines = this._shuffleLines(NARRATIVE_LINES.slice());
+    this.narrativeTimer = null;
 
     this._bindInputs();
     this._bindUI();
@@ -164,6 +174,7 @@ export class Game {
     this.crashExploded = false;
     this.crashParticles = [];
     this.obstacles.reset();
+    this._startNarrative();
     this.score = 0;
     this.invulnerableUntil = 0;
     this.currentParams = this.mode.paramsForScore(0);
@@ -177,6 +188,7 @@ export class Game {
   pause() {
     if (this.state !== STATE.PLAYING) return;
     this.state = STATE.PAUSED;
+    this._stopNarrative();
     this.ui.showPause();
   }
 
@@ -189,6 +201,7 @@ export class Game {
       if (this.state !== STATE.PAUSED) return; // если за это время сменили состояние — не запускаем
       this.state = STATE.PLAYING;
       this.lastTs = performance.now();
+      this._startNarrative();
     });
   }
 
@@ -229,6 +242,7 @@ export class Game {
   die() {
     if (this.state !== STATE.PLAYING) return;
     this.state = STATE.CRASHING;
+    this._stopNarrative();
     Audio.playCrash();
     Audio.vibrate([20, 30, 60]);
     Storage.increment('deathsSinceAd');
@@ -388,6 +402,7 @@ export class Game {
 
     // Параллакс крутится всегда, в т.ч. в MENU/DEAD — живой фон
     this._updateStars(dt);
+    this._updateCosmic(dt);
 
     this._render();
 
@@ -395,11 +410,14 @@ export class Game {
   }
 
   // === Stars parallax ===
+  // 3 слоя, всего ~65 звёзд (раньше было 160). Лишь часть мерцает — остальные горят ровно.
   _makeStars() {
     const layers = [];
-    const counts = [80, 50, 30];
-    const speeds = [0.18, 0.42, 0.85];
+    const counts = [32, 18, 8];
+    const speeds = [0.18, 0.40, 0.78];
     const sizes = [1, 2, 3];
+    // Доля мерцающих звёзд в каждом слое (только крупные мерцают чаще)
+    const twinkleChance = [0.08, 0.20, 0.50];
     for (let l = 0; l < 3; l++) {
       const arr = [];
       for (let i = 0; i < counts[l]; i++) {
@@ -408,7 +426,8 @@ export class Game {
           y: Math.random() * this.h,
           size: sizes[l],
           speed: speeds[l],
-          twinkle: Math.random(),
+          twinkle: Math.random() < twinkleChance[l],
+          phase: Math.random() * Math.PI * 2,
         });
       }
       layers.push(arr);
@@ -417,15 +436,112 @@ export class Game {
   }
 
   _updateStars(dt) {
-    // Едут быстрее если идёт игра, иначе медленный эмбиент
-    const baseSpeed = this.state === STATE.PLAYING ? this.currentParams.speed * 0.5 : 0.4;
+    const baseSpeed = this.state === STATE.PLAYING ? this.currentParams.speed * 0.45 : 0.35;
     for (const layer of this.stars) {
       for (const s of layer) {
         s.x -= s.speed * baseSpeed * dt;
-        s.twinkle += dt * 0.04;
-        if (s.x < -2) { s.x = this.w + 2; s.y = Math.random() * this.h; }
+        if (s.twinkle) s.phase += dt * 0.05;
+        if (s.x < -2) {
+          s.x = this.w + 2;
+          s.y = Math.random() * this.h;
+        }
       }
     }
+  }
+
+  // === Большие фоновые космические объекты (планеты, туманности) ===
+  _makeCosmic() {
+    // Несколько крупных, очень малоконтрастных объектов. Двигаются заметно медленнее звёзд.
+    return [
+      // Гигантская планета сверху-справа
+      { type: 'planet', x: this.w * 0.78, y: this.h * 0.22, r: 110,
+        c1: 'rgba(220,160,120,0.20)', c2: 'rgba(100,40,40,0.12)', c3: 'rgba(40,15,15,0)',
+        dx: -0.05 },
+      // Газовая планета внизу-слева
+      { type: 'planet', x: this.w * 0.18, y: this.h * 0.78, r: 150,
+        c1: 'rgba(120,170,220,0.18)', c2: 'rgba(50,80,140,0.10)', c3: 'rgba(20,30,60,0)',
+        dx: -0.035 },
+      // Туманность по центру
+      { type: 'nebula', x: this.w * 0.5, y: this.h * 0.45, r: 240,
+        c1: 'rgba(220,80,180,0.10)', c2: 'rgba(100,30,120,0.05)', c3: 'rgba(20,10,40,0)',
+        dx: -0.018 },
+      // Бирюзовая туманность далеко
+      { type: 'nebula', x: this.w * 1.2, y: this.h * 0.65, r: 200,
+        c1: 'rgba(80,200,220,0.10)', c2: 'rgba(30,100,140,0.05)', c3: 'rgba(10,40,60,0)',
+        dx: -0.018 },
+      // Маленький "спутник"-планета далеко
+      { type: 'planet', x: this.w * 1.5, y: this.h * 0.12, r: 60,
+        c1: 'rgba(255,210,140,0.18)', c2: 'rgba(120,60,30,0.10)', c3: 'rgba(40,20,10,0)',
+        dx: -0.045 },
+    ];
+  }
+
+  _updateCosmic(dt) {
+    const mult = this.state === STATE.PLAYING ? this.currentParams.speed * 0.4 : 0.4;
+    for (const o of this.cosmic) {
+      o.x += o.dx * mult * dt;
+      if (o.x < -o.r - 50) o.x = this.w + o.r + Math.random() * 100;
+    }
+  }
+
+  _renderCosmic(ctx) {
+    for (const o of this.cosmic) {
+      const grad = ctx.createRadialGradient(
+        o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.05,
+        o.x, o.y, o.r
+      );
+      grad.addColorStop(0, o.c1);
+      grad.addColorStop(0.5, o.c2);
+      grad.addColorStop(1, o.c3);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // === Narrative ticker ===
+  _shuffleLines(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  _startNarrative() {
+    if (!this.narrativeEl) return;
+    this.narrativeEl.classList.remove('hidden');
+    this._showNarrativeLine(this.narrativeLines[this.narrativeIdx]);
+    this._scheduleNextNarrative();
+  }
+
+  _scheduleNextNarrative() {
+    clearTimeout(this.narrativeTimer);
+    this.narrativeTimer = setTimeout(() => {
+      // fade out → swap → fade in
+      this.narrativeText.classList.remove('visible');
+      setTimeout(() => {
+        this.narrativeIdx = (this.narrativeIdx + 1) % this.narrativeLines.length;
+        this._showNarrativeLine(this.narrativeLines[this.narrativeIdx]);
+        this._scheduleNextNarrative();
+      }, 700);
+    }, 6500);
+  }
+
+  _showNarrativeLine(text) {
+    if (!this.narrativeText) return;
+    this.narrativeText.textContent = text;
+    // Принудительный reflow перед добавлением visible, чтобы transition сработал
+    void this.narrativeText.offsetWidth;
+    this.narrativeText.classList.add('visible');
+  }
+
+  _stopNarrative() {
+    clearTimeout(this.narrativeTimer);
+    this.narrativeTimer = null;
+    if (this.narrativeText) this.narrativeText.classList.remove('visible');
+    if (this.narrativeEl) this.narrativeEl.classList.add('hidden');
   }
 
   // === Render ===
@@ -440,23 +556,28 @@ export class Game {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, this.w, this.h);
 
-    // Дальняя туманность (тонкая)
-    ctx.save();
-    ctx.globalAlpha = 0.18;
-    const neb = ctx.createRadialGradient(this.w * 0.7, this.h * 0.3, 10, this.w * 0.7, this.h * 0.3, 240);
-    neb.addColorStop(0, '#ff4dd2');
-    neb.addColorStop(1, 'rgba(255,77,210,0)');
-    ctx.fillStyle = neb;
-    ctx.fillRect(0, 0, this.w, this.h);
-    ctx.restore();
+    // Большие фоновые объекты (планеты, туманности) — низкоконтрастные
+    this._renderCosmic(ctx);
 
-    // Звёзды
+    // Звёзды: большинство — статичные точки, лишь часть мерцает
     for (const layer of this.stars) {
       for (const s of layer) {
-        const tw = 0.55 + 0.45 * Math.sin(s.twinkle * 6.28);
-        ctx.globalAlpha = tw;
-        ctx.fillStyle = s.size >= 3 ? '#fff8b0' : (s.size === 2 ? '#cfeaff' : '#9fc4ff');
-        ctx.fillRect(s.x, s.y, s.size, s.size);
+        const baseColor = s.size >= 3 ? '#fff8b0' : (s.size === 2 ? '#cfeaff' : '#9fc4ff');
+        if (s.twinkle) {
+          const tw = 0.5 + 0.5 * Math.sin(s.phase * 6.28);
+          ctx.globalAlpha = tw;
+          ctx.fillStyle = baseColor;
+          ctx.fillRect(s.x, s.y, s.size, s.size);
+          // Лёгкий ореол вокруг мерцающих
+          if (s.size >= 2) {
+            ctx.globalAlpha = tw * 0.35;
+            ctx.fillRect(s.x - 1, s.y - 1, s.size + 2, s.size + 2);
+          }
+        } else {
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = baseColor;
+          ctx.fillRect(s.x, s.y, s.size, s.size);
+        }
       }
     }
     ctx.globalAlpha = 1;

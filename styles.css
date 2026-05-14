@@ -149,9 +149,9 @@ button {
 }
 
 .title {
-  font-size: 56px;
+  font-size: 54px;
   font-weight: 900;
-  letter-spacing: 4px;
+  letter-spacing: 3px;
   line-height: 1;
   margin: 0 0 36px;
   background: linear-gradient(180deg, #ffffff 0%, #80e8ff 60%, #5cc8ff 100%);
@@ -160,6 +160,16 @@ button {
   color: transparent;
   text-shadow: 0 0 40px rgba(80, 220, 255, 0.45);
   filter: drop-shadow(0 0 12px rgba(0, 200, 255, 0.45));
+}
+.title-num {
+  display: inline-block;
+  font-size: 0.78em;
+  font-weight: 900;
+  background: linear-gradient(180deg, #ffe9a8 0%, #ffd86b 55%, #ff8a3d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 10px rgba(255, 200, 80, 0.55));
 }
 
 .screen-title {
@@ -355,6 +365,33 @@ button {
   border-radius: 2px;
   box-shadow: 0 0 8px rgba(255, 85, 119, 0.7);
 }
+
+/* ============ Narrative ticker (bottom philosophical text) ============ */
+.narrative {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(48px, calc(env(safe-area-inset-bottom) + 32px));
+  padding: 0 28px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 4;
+}
+.narrative-text {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.4px;
+  font-style: italic;
+  color: rgba(200, 230, 255, 0.62);
+  text-shadow: 0 0 18px rgba(80, 150, 200, 0.4),
+               0 0 32px rgba(40, 80, 130, 0.25);
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  max-width: 360px;
+  margin: 0 auto;
+}
+.narrative-text.visible { opacity: 1; }
 
 /* ============ Countdown ============ */
 .countdown {
