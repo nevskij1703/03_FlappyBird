@@ -256,41 +256,61 @@ export class Game {
     this.player.vx = -2.4 - Math.random() * 1.6; // толчок назад от препятствия
   }
 
-  // Спавнит осколки + горящие частицы при взрыве.
+  // Спавнит частицы реалистичного взрыва: огонь, клубы дыма, обломки.
   _spawnCrashParticles() {
     const cx = this.player.x;
     const cy = this.player.y;
     const list = [];
-    const palette = ['#ffd86b', '#ff8a3d', '#fff5b0', '#ff4dd2', '#80e8ff', '#ffffff'];
-    // Яркие быстрые искры
-    for (let i = 0; i < 28; i++) {
-      const a = (i / 28) * Math.PI * 2 + Math.random() * 0.4;
-      const speed = 2.2 + Math.random() * 4.5;
+
+    // Огненный шар — быстрые горящие частицы (16 шт), оранжево-жёлтые
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + Math.random() * 0.3;
+      const speed = 1.6 + Math.random() * 2.6;
       list.push({
-        x: cx, y: cy,
+        type: 'fire',
+        x: cx + (Math.random() - 0.5) * 6,
+        y: cy + (Math.random() - 0.5) * 6,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed,
-        life: 55 + Math.random() * 30,  // в кадрах (1 кадр = ~1 dt)
-        size: 2 + Math.random() * 3,
-        color: palette[Math.floor(Math.random() * palette.length)],
-        glow: Math.random() < 0.45,
+        life: 28 + Math.random() * 18,   // короткая жизнь (~0.5с)
+        maxLife: 46,
+        size: 5 + Math.random() * 5,
       });
     }
-    // Куски-обломки Вояджера — более тусклые
-    for (let i = 0; i < 10; i++) {
+
+    // Клубы дыма — крупные мягкие, медленные (14 шт), растут со временем
+    for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
-      const speed = 1.2 + Math.random() * 2.6;
+      const speed = 0.5 + Math.random() * 1.3;
       list.push({
-        x: cx + (Math.random() - 0.5) * 14,
-        y: cy + (Math.random() - 0.5) * 14,
+        type: 'smoke',
+        x: cx + (Math.random() - 0.5) * 10,
+        y: cy + (Math.random() - 0.5) * 10,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed - 0.15, // лёгкий снос вверх — клубы поднимаются
+        life: 75 + Math.random() * 35,   // долго живут (~1.5с)
+        maxLife: 110,
+        size: 7 + Math.random() * 6,
+        growMax: 18 + Math.random() * 14,
+      });
+    }
+
+    // Обломки Вояджера — серые с разной скоростью (8 шт), вращаются
+    for (let i = 0; i < 8; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = 1.2 + Math.random() * 2.0;
+      list.push({
+        type: 'debris',
+        x: cx + (Math.random() - 0.5) * 10,
+        y: cy + (Math.random() - 0.5) * 10,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed,
-        life: 70 + Math.random() * 40,
-        size: 3 + Math.random() * 3,
-        color: ['#c9d0d8', '#727680', '#e8c248'][Math.floor(Math.random() * 3)],
-        debris: true,
+        life: 55 + Math.random() * 35,
+        maxLife: 90,
+        size: 3 + Math.random() * 2.5,
+        color: ['#3a3d52', '#62657c', '#8a8f9a', '#a0a8b4'][Math.floor(Math.random() * 4)],
         rot: Math.random() * Math.PI * 2,
-        spin: (Math.random() - 0.5) * 0.4,
+        spin: (Math.random() - 0.5) * 0.3,
       });
     }
     return list;
@@ -315,14 +335,24 @@ export class Game {
       Audio.vibrate([20, 30, 60]);
     }
 
-    // Обновляем все частицы (если уже есть).
+    // Обновляем все частицы (если уже есть). У каждого типа своё затухание.
     for (const p of this.crashParticles) {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      // лёгкое замедление; почти нет гравитации (zero-G), но искры остывают
-      p.vx *= 0.985;
-      p.vy *= 0.985;
-      if (p.debris) p.rot += p.spin * dt;
+      if (p.type === 'smoke') {
+        // Дым быстро тормозит и клубится — почти на месте
+        p.vx *= 0.93;
+        p.vy *= 0.93;
+      } else if (p.type === 'fire') {
+        // Огонь летит и затухает
+        p.vx *= 0.97;
+        p.vy *= 0.97;
+      } else {
+        // Обломки летят дальше, крутятся
+        p.vx *= 0.99;
+        p.vy *= 0.99;
+        p.rot += p.spin * dt;
+      }
       p.life -= dt;
     }
     if (this.crashParticles.length) {
@@ -476,46 +506,90 @@ export class Game {
       ctx.globalAlpha = 1;
     }
 
-    // Вспышка взрыва (короткая, 220мс с момента взрыва)
+    // Частицы и вспышка взрыва — рисуем в правильном порядке слоёв.
     if (isCrashing && this.crashExploded) {
-      const flashT = performance.now() - this.crashAt - CRASH_BOUNCE_MS;
-      if (flashT < 220) {
-        const a = 1 - flashT / 220;
-        const r = 30 + flashT * 0.6;
-        const grad = ctx.createRadialGradient(this.player.x, this.player.y, 0, this.player.x, this.player.y, r);
-        grad.addColorStop(0, `rgba(255, 240, 200, ${a})`);
-        grad.addColorStop(0.35, `rgba(255, 150, 60, ${a * 0.65})`);
-        grad.addColorStop(1, `rgba(255, 80, 30, 0)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, this.w, this.h);
-      }
+      this._renderExplosion(ctx);
+    } else if (this.crashParticles && this.crashParticles.length) {
+      // Уже DEAD, но частицы ещё долетают
+      this._renderExplosion(ctx);
+    }
+  }
+
+  // Рендер взрыва: сначала дым (сзади), потом обломки, потом огонь, потом вспышка.
+  _renderExplosion(ctx) {
+    const px = this.player.x;
+    const py = this.player.y;
+
+    // --- Слой 1: дым (мягкие радиальные клубы) ---
+    for (const p of this.crashParticles) {
+      if (p.type !== 'smoke') continue;
+      const t = 1 - p.life / p.maxLife;          // 0 в начале → 1 в конце
+      if (t < 0 || t > 1) continue;
+      const size = p.size + t * p.growMax;        // дым растёт
+      const baseAlpha = (1 - t) * 0.6;            // и медленно прозрачнеет
+      // оттенок: первые 30% — тёмно-серо-коричневый, потом светлее (остатки гари)
+      const gray = Math.floor(38 + t * 28);
+      const r = gray + 6;
+      const g = gray;
+      const b = gray - 4;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size);
+      grad.addColorStop(0, `rgba(${r},${g},${b},${baseAlpha})`);
+      grad.addColorStop(0.55, `rgba(${r-8},${g-8},${b-8},${baseAlpha * 0.55})`);
+      grad.addColorStop(1, `rgba(${r-14},${g-14},${b-14},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // Частицы взрыва
-    if (this.crashParticles && this.crashParticles.length) {
-      for (const p of this.crashParticles) {
-        const a = Math.max(0, Math.min(1, p.life / 50));
-        ctx.globalAlpha = a;
-        if (p.debris) {
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate(p.rot || 0);
-          ctx.fillStyle = p.color;
-          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
-          ctx.restore();
-        } else {
-          if (p.glow) {
-            ctx.shadowColor = p.color;
-            ctx.shadowBlur = 10;
-          }
-          ctx.fillStyle = p.color;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size * 0.5, 0, Math.PI * 2);
-          ctx.fill();
-          if (p.glow) ctx.shadowBlur = 0;
-        }
-      }
-      ctx.globalAlpha = 1;
+    // --- Слой 2: вспышка (короткая, 180мс с момента взрыва) — поверх дыма ---
+    const flashT = performance.now() - this.crashAt - CRASH_BOUNCE_MS;
+    if (flashT >= 0 && flashT < 180) {
+      const fa = 1 - flashT / 180;
+      const fr = 35 + flashT * 0.8;
+      const fgrad = ctx.createRadialGradient(px, py, 0, px, py, fr);
+      fgrad.addColorStop(0,    `rgba(255, 250, 230, ${fa})`);
+      fgrad.addColorStop(0.25, `rgba(255, 210, 120, ${fa * 0.9})`);
+      fgrad.addColorStop(0.55, `rgba(255, 130, 50,  ${fa * 0.55})`);
+      fgrad.addColorStop(1,    `rgba(180, 40, 10,   0)`);
+      ctx.fillStyle = fgrad;
+      ctx.fillRect(0, 0, this.w, this.h);
+    }
+
+    // --- Слой 3: обломки (вращающиеся прямоугольники) ---
+    for (const p of this.crashParticles) {
+      if (p.type !== 'debris') continue;
+      const a = Math.max(0, Math.min(1, p.life / 30));
+      ctx.globalAlpha = a;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot || 0);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.7);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    // --- Слой 4: огонь — поверх всего, с glow, цвет меняется от белого к красному ---
+    for (const p of this.crashParticles) {
+      if (p.type !== 'fire') continue;
+      const t = 1 - p.life / p.maxLife;
+      if (t < 0 || t > 1) continue;
+      // Палитра: белый-жёлтый → оранжевый → красный → темно-красный
+      const r = 255;
+      const g = Math.max(30, Math.floor(245 * (1 - t * 1.1)));
+      const b = Math.max(15, Math.floor(120 * (1 - t * 2)));
+      const alpha = Math.max(0, 1 - t * 0.85);
+      // Мягкое внешнее сияние
+      const outerR = p.size * 1.7;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, outerR);
+      grad.addColorStop(0, `rgba(${r},${Math.min(255, g + 30)},${b + 20},${alpha})`);
+      grad.addColorStop(0.4, `rgba(${r},${g},${b},${alpha * 0.7})`);
+      grad.addColorStop(1, `rgba(${r},${Math.max(20, g - 60)},${b},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, outerR, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }
