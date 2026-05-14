@@ -66,14 +66,16 @@ export function getSkin(id) {
 // Рисует зонд (Вояджер-1) в (x, y).
 // lastThrustAt — момент последнего тапа (ms), для эффекта "пшика".
 // thrustDir — текущее направление движения (-1 вверх, +1 вниз, 0 покой).
-export function drawProbe(ctx, x, y, skinId, lastThrustAt, thrustDir) {
+// rotation — опциональный угол поворота (используется в анимации крушения).
+export function drawProbe(ctx, x, y, skinId, lastThrustAt, thrustDir, rotation = 0) {
   const skin = getSkin(skinId);
   const now = performance.now();
   const tEl = now - (lastThrustAt || -1e9);
-  const puffActive = tEl < CONFIG.thrustPuffMs && thrustDir !== 0;
+  const puffActive = tEl < CONFIG.thrustPuffMs && thrustDir !== 0 && !rotation;
 
   ctx.save();
   ctx.translate(x, y);
+  if (rotation) ctx.rotate(rotation);
 
   // === Облачко-"пшик" (рисуем под/над зондом, противоположно движению) ===
   if (puffActive) {

@@ -13,9 +13,14 @@ const STATE = Object.freeze({
   MENU: 'MENU',
   PLAYING: 'PLAYING',
   PAUSED: 'PAUSED',
+  CRASHING: 'CRASHING', // отскок + взрыв (~1.5с) перед DEAD
   DEAD: 'DEAD',
   AD: 'AD',
 });
+
+// Длительности фаз крушения, мс.
+const CRASH_BOUNCE_MS = 280;   // зонд тумблит и отскакивает
+const CRASH_TOTAL_MS = 1500;   // когда показываем экран gameover
 
 export class Game {
   constructor(canvas) {
@@ -31,10 +36,17 @@ export class Game {
     this.player = {
       x: CONFIG.player.x,
       y: this.h / 2,
+      vx: 0,              // используется только в фазе CRASHING
       vy: 0,
       thrustDir: 0,       // 0=покой, -1=вверх, +1=вниз
       lastThrustAt: -1e9, // время последнего "пшика" для визуального эффекта
     };
+
+    // Анимация крушения
+    this.crashAt = 0;
+    this.crashRot = 0;
+    this.crashExploded = false;
+    this.crashParticles = [];
 
     this.obstacles = new ObstacleField(this.w, this.h);
     this.ui = new UI();
@@ -48,13 +60,10 @@ export class Game {
 
     // Revive — лимита нет, ведётся только неуязвимость после возрождения
     this.invulnerableUntil = 0;
+    this.pendingGameOver = null;
 
     // Parallax stars: 3 слоя
     this.stars = this._makeStars();
-
-    // Death freeze (короткая пауза для feedback)
-    this.deathFreezeUntil = 0;
-    this.pendingGameOver = null;
 
     this._bindInputs();
     this._bindUI();
@@ -148,10 +157,15 @@ export class Game {
   }
 
   _beginRound() {
+    this.player.x = CONFIG.player.x;
     this.player.y = this.h / 2;
+    this.player.vx = 0;
     this.player.vy = 0;
     this.player.thrustDir = 0;
     this.player.lastThrustAt = -1e9;
+    this.crashRot = 0;
+    this.crashExploded = false;
+    this.crashParticles = [];
     this.obstacles.reset();
     this.score = 0;
     this.invulnerableUntil = 0;
@@ -217,7 +231,7 @@ export class Game {
 
   die() {
     if (this.state !== STATE.PLAYING) return;
-    this.state = STATE.DEAD;
+    this.state = STATE.CRASHING;
     Audio.playCrash();
     Audio.vibrate(60);
     Storage.increment('deathsSinceAd');
@@ -226,19 +240,102 @@ export class Game {
     if (isNewRecord) {
       this.best = this.score;
       Storage.set('bestScore', this.best);
-      // Небольшое торжество при новом рекорде
       Audio.playWin();
     }
-    // Сохраняем для отложенного показа после фриза. Реклама теперь не здесь, а перед след. попыткой.
+    // Сохраняем для показа после анимации крушения.
     this.pendingGameOver = { score: this.score, best: this.best, isNewRecord };
-    this.deathFreezeUntil = performance.now() + 350;
+
+    // Запускаем анимацию крушения: отскок + взрыв.
+    this.crashAt = performance.now();
+    this.crashRot = 0;
+    this.crashExploded = false;
+    this.crashParticles = [];
+    // Отскок: разворачиваем vy с потерей энергии + лёгкий случайный момент.
+    const yMomentum = this.player.vy || (Math.random() < 0.5 ? -3 : 3);
+    this.player.vy = -Math.sign(yMomentum) * (3.5 + Math.random() * 1.5);
+    this.player.vx = -2.4 - Math.random() * 1.6; // толчок назад от препятствия
   }
 
-  _afterDeathFreeze() {
-    const { score, best, isNewRecord } = this.pendingGameOver;
-    this.pendingGameOver = null;
-    this.ui.showGameOver(score, best, isNewRecord);
-    this.state = STATE.DEAD;
+  // Спавнит осколки + горящие частицы при взрыве.
+  _spawnCrashParticles() {
+    const cx = this.player.x;
+    const cy = this.player.y;
+    const list = [];
+    const palette = ['#ffd86b', '#ff8a3d', '#fff5b0', '#ff4dd2', '#80e8ff', '#ffffff'];
+    // Яркие быстрые искры
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2 + Math.random() * 0.4;
+      const speed = 2.2 + Math.random() * 4.5;
+      list.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        life: 55 + Math.random() * 30,  // в кадрах (1 кадр = ~1 dt)
+        size: 2 + Math.random() * 3,
+        color: palette[Math.floor(Math.random() * palette.length)],
+        glow: Math.random() < 0.45,
+      });
+    }
+    // Куски-обломки Вояджера — более тусклые
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = 1.2 + Math.random() * 2.6;
+      list.push({
+        x: cx + (Math.random() - 0.5) * 14,
+        y: cy + (Math.random() - 0.5) * 14,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        life: 70 + Math.random() * 40,
+        size: 3 + Math.random() * 3,
+        color: ['#c9d0d8', '#727680', '#e8c248'][Math.floor(Math.random() * 3)],
+        debris: true,
+        rot: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.4,
+      });
+    }
+    return list;
+  }
+
+  _updateCrash(dt) {
+    const now = performance.now();
+    const t = now - this.crashAt;
+
+    // Фаза 1: отскок и кувырок — зонд ещё виден.
+    if (t < CRASH_BOUNCE_MS) {
+      this.player.x += this.player.vx * dt;
+      this.player.y += this.player.vy * dt;
+      this.player.vx *= 0.93;
+      this.player.vy *= 0.93;
+      this.crashRot += 0.22 * dt;
+    } else if (!this.crashExploded) {
+      // Фаза 2: взрыв — спавним частицы, зонд больше не рисуется.
+      this.crashExploded = true;
+      this.crashParticles = this._spawnCrashParticles();
+      Audio.playCrash(); // повтор для драматизма
+      Audio.vibrate([20, 30, 60]);
+    }
+
+    // Обновляем все частицы (если уже есть).
+    for (const p of this.crashParticles) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      // лёгкое замедление; почти нет гравитации (zero-G), но искры остывают
+      p.vx *= 0.985;
+      p.vy *= 0.985;
+      if (p.debris) p.rot += p.spin * dt;
+      p.life -= dt;
+    }
+    if (this.crashParticles.length) {
+      this.crashParticles = this.crashParticles.filter((p) => p.life > 0);
+    }
+
+    // По таймеру — показываем gameover.
+    if (t >= CRASH_TOTAL_MS) {
+      const { score, best, isNewRecord } = this.pendingGameOver;
+      this.pendingGameOver = null;
+      this.state = STATE.DEAD;
+      this.ui.showGameOver(score, best, isNewRecord);
+    }
   }
 
   // === Tick ===
@@ -247,7 +344,9 @@ export class Game {
     const dt = rawDt / 16.67;
     this.lastTs = ts;
 
-    if (this.state === STATE.PLAYING) {
+    if (this.state === STATE.CRASHING) {
+      this._updateCrash(dt);
+    } else if (this.state === STATE.PLAYING) {
       // Физика
       Physics.applyTick(this.player, dt);
       // Сложность
@@ -282,11 +381,6 @@ export class Game {
     this._updateStars(dt);
 
     this._render();
-
-    // Отложенный gameover screen после death freeze
-    if (this.state === STATE.DEAD && this.pendingGameOver && performance.now() >= this.deathFreezeUntil) {
-      this._afterDeathFreeze();
-    }
 
     requestAnimationFrame(this._tick);
   }
@@ -361,20 +455,67 @@ export class Game {
     // Препятствия
     this.obstacles.render(ctx);
 
-    // Зонд (с мерцанием при неуязвимости)
-    const invulnerable = performance.now() < this.invulnerableUntil;
-    if (invulnerable) {
-      const f = Math.sin(performance.now() / 70);
-      ctx.globalAlpha = f > 0 ? 0.5 : 0.95;
+    // Зонд — не рисуем после взрыва
+    const isCrashing = this.state === STATE.CRASHING;
+    const showProbe = !isCrashing || !this.crashExploded;
+    if (showProbe) {
+      const invulnerable = performance.now() < this.invulnerableUntil;
+      if (invulnerable) {
+        const f = Math.sin(performance.now() / 70);
+        ctx.globalAlpha = f > 0 ? 0.5 : 0.95;
+      }
+      drawProbe(
+        ctx,
+        this.player.x,
+        this.player.y,
+        Storage.get('skin') || 'default',
+        this.player.lastThrustAt,
+        this.player.thrustDir,
+        isCrashing ? this.crashRot : 0
+      );
+      ctx.globalAlpha = 1;
     }
-    drawProbe(
-      ctx,
-      this.player.x,
-      this.player.y,
-      Storage.get('skin') || 'default',
-      this.player.lastThrustAt,
-      this.player.thrustDir
-    );
-    ctx.globalAlpha = 1;
+
+    // Вспышка взрыва (короткая, 220мс с момента взрыва)
+    if (isCrashing && this.crashExploded) {
+      const flashT = performance.now() - this.crashAt - CRASH_BOUNCE_MS;
+      if (flashT < 220) {
+        const a = 1 - flashT / 220;
+        const r = 30 + flashT * 0.6;
+        const grad = ctx.createRadialGradient(this.player.x, this.player.y, 0, this.player.x, this.player.y, r);
+        grad.addColorStop(0, `rgba(255, 240, 200, ${a})`);
+        grad.addColorStop(0.35, `rgba(255, 150, 60, ${a * 0.65})`);
+        grad.addColorStop(1, `rgba(255, 80, 30, 0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, this.w, this.h);
+      }
+    }
+
+    // Частицы взрыва
+    if (this.crashParticles && this.crashParticles.length) {
+      for (const p of this.crashParticles) {
+        const a = Math.max(0, Math.min(1, p.life / 50));
+        ctx.globalAlpha = a;
+        if (p.debris) {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot || 0);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        } else {
+          if (p.glow) {
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 10;
+          }
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          if (p.glow) ctx.shadowBlur = 0;
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
   }
 }
