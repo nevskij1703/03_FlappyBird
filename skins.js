@@ -75,9 +75,10 @@ export function drawProbe(ctx, x, y, skinId, lastThrustAt, thrustDir, rotation =
 
   ctx.save();
   ctx.translate(x, y);
-  if (rotation) ctx.rotate(rotation);
 
-  // === Облачко-"пшик" (рисуем под/над зондом, противоположно движению) ===
+  // === Облачко-"пшик" — рисуем В КАНВАС-КООРДИНАТАХ (до поворота тела). ===
+  // Импульс направлен по вертикали в мире, поэтому облачко всегда снизу/сверху,
+  // независимо от того, что тарелка зонда повёрнута вбок.
   if (puffActive) {
     const a = Math.max(0, 1 - tEl / CONFIG.thrustPuffMs);
     const grow = tEl / CONFIG.thrustPuffMs; // 0..1
@@ -99,7 +100,11 @@ export function drawProbe(ctx, x, y, skinId, lastThrustAt, thrustDir, rotation =
     ctx.globalAlpha = 1;
   }
 
-  // === Длинная антенна-магнитометр слева ===
+  // === Поворот зонда: тарелка смотрит вправо (по направлению полёта). ===
+  // Локальная ось "вверх" в исходной модели становится "вправо" в канвасе.
+  ctx.rotate(Math.PI / 2 + (rotation || 0));
+
+  // === Длинная антенна-магнитометр (была слева, теперь смотрит вверх в канвасе) ===
   ctx.strokeStyle = skin.antenna;
   ctx.lineWidth = 1.4;
   ctx.beginPath();
