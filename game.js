@@ -18,9 +18,8 @@ const STATE = Object.freeze({
   AD: 'AD',
 });
 
-// Длительности фаз крушения, мс.
-const CRASH_BOUNCE_MS = 280;   // зонд тумблит и отскакивает
-const CRASH_TOTAL_MS = 1500;   // когда показываем экран gameover
+// Длительность анимации крушения, мс — пока расходятся дым и обломки.
+const CRASH_TOTAL_MS = 1500;
 
 export class Game {
   constructor(canvas) {
@@ -44,7 +43,6 @@ export class Game {
 
     // Анимация крушения
     this.crashAt = 0;
-    this.crashRot = 0;
     this.crashExploded = false;
     this.crashParticles = [];
 
@@ -163,7 +161,6 @@ export class Game {
     this.player.vy = 0;
     this.player.thrustDir = 0;
     this.player.lastThrustAt = -1e9;
-    this.crashRot = 0;
     this.crashExploded = false;
     this.crashParticles = [];
     this.obstacles.reset();
@@ -233,7 +230,7 @@ export class Game {
     if (this.state !== STATE.PLAYING) return;
     this.state = STATE.CRASHING;
     Audio.playCrash();
-    Audio.vibrate(60);
+    Audio.vibrate([20, 30, 60]);
     Storage.increment('deathsSinceAd');
 
     const isNewRecord = this.score > this.best;
@@ -242,18 +239,15 @@ export class Game {
       Storage.set('bestScore', this.best);
       Audio.playWin();
     }
-    // Сохраняем для показа после анимации крушения.
     this.pendingGameOver = { score: this.score, best: this.best, isNewRecord };
 
-    // Запускаем анимацию крушения: отскок + взрыв.
+    // Взрыв происходит МГНОВЕННО в точке удара — без фазы отскока.
     this.crashAt = performance.now();
-    this.crashRot = 0;
-    this.crashExploded = false;
-    this.crashParticles = [];
-    // Отскок: разворачиваем vy с потерей энергии + лёгкий случайный момент.
-    const yMomentum = this.player.vy || (Math.random() < 0.5 ? -3 : 3);
-    this.player.vy = -Math.sign(yMomentum) * (3.5 + Math.random() * 1.5);
-    this.player.vx = -2.4 - Math.random() * 1.6; // толчок назад от препятствия
+    this.crashExploded = true;
+    this.crashParticles = this._spawnCrashParticles();
+    // Останавливаем движение зонда (он всё равно больше не рисуется).
+    this.player.vx = 0;
+    this.player.vy = 0;
   }
 
   // Спавнит частицы реалистичного взрыва: огонь, клубы дыма, обломки.
@@ -320,22 +314,7 @@ export class Game {
     const now = performance.now();
     const t = now - this.crashAt;
 
-    // Фаза 1: отскок и кувырок — зонд ещё виден.
-    if (t < CRASH_BOUNCE_MS) {
-      this.player.x += this.player.vx * dt;
-      this.player.y += this.player.vy * dt;
-      this.player.vx *= 0.93;
-      this.player.vy *= 0.93;
-      this.crashRot += 0.22 * dt;
-    } else if (!this.crashExploded) {
-      // Фаза 2: взрыв — спавним частицы, зонд больше не рисуется.
-      this.crashExploded = true;
-      this.crashParticles = this._spawnCrashParticles();
-      Audio.playCrash(); // повтор для драматизма
-      Audio.vibrate([20, 30, 60]);
-    }
-
-    // Обновляем все частицы (если уже есть). У каждого типа своё затухание.
+    // Обновляем частицы. У каждого типа своё затухание.
     for (const p of this.crashParticles) {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -485,10 +464,9 @@ export class Game {
     // Препятствия
     this.obstacles.render(ctx);
 
-    // Зонд — не рисуем после взрыва
+    // Зонд — мгновенно исчезает в момент удара (взрыв происходит на его месте).
     const isCrashing = this.state === STATE.CRASHING;
-    const showProbe = !isCrashing || !this.crashExploded;
-    if (showProbe) {
+    if (!isCrashing) {
       const invulnerable = performance.now() < this.invulnerableUntil;
       if (invulnerable) {
         const f = Math.sin(performance.now() / 70);
@@ -500,8 +478,7 @@ export class Game {
         this.player.y,
         Storage.get('skin') || 'default',
         this.player.lastThrustAt,
-        this.player.thrustDir,
-        isCrashing ? this.crashRot : 0
+        this.player.thrustDir
       );
       ctx.globalAlpha = 1;
     }
@@ -542,8 +519,8 @@ export class Game {
       ctx.fill();
     }
 
-    // --- Слой 2: вспышка (короткая, 180мс с момента взрыва) — поверх дыма ---
-    const flashT = performance.now() - this.crashAt - CRASH_BOUNCE_MS;
+    // --- Слой 2: вспышка (короткая, 180мс с момента удара) — поверх дыма ---
+    const flashT = performance.now() - this.crashAt;
     if (flashT >= 0 && flashT < 180) {
       const fa = 1 - flashT / 180;
       const fr = 35 + flashT * 0.8;
