@@ -143,6 +143,14 @@ button {
   animation: fadeIn 0.25s ease;
 }
 
+/* Стартовый экран: заголовок сверху, "ИГРАТЬ" — умеренно низко */
+#screen-start {
+  justify-content: flex-start;
+  padding: 11% 24px 13% 24px;
+}
+#screen-start .btn-stack { margin-top: auto; }
+#screen-start .settings-row { margin-top: 22px; }
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -162,8 +170,8 @@ button {
   filter: drop-shadow(0 0 12px rgba(0, 200, 255, 0.45));
 }
 .title-num {
-  display: inline-block;
-  font-size: 0.78em;
+  /* Без уменьшения font-size — цифра одной высоты с заглавными буквами,
+     поэтому базовая линия и cap-height автоматически совпадают. */
   font-weight: 900;
   background: linear-gradient(180deg, #ffe9a8 0%, #ffd86b 55%, #ff8a3d 100%);
   -webkit-background-clip: text;
