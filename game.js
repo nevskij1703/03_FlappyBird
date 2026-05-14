@@ -65,6 +65,9 @@ export class Game {
     this.stars = this._makeStars();
     // Большие фоновые объекты — планеты, туманности
     this.cosmic = this._makeCosmic();
+    // Падающие звёзды — редкие визуальные события
+    this.shootingStars = [];
+    this.nextShootingStarAt = performance.now() + 2500 + Math.random() * 4000;
 
     // Нарратив (DOM-тикер философских фраз внизу)
     this.narrativeEl = document.getElementById('narrative');
@@ -403,6 +406,7 @@ export class Game {
     // Параллакс крутится всегда, в т.ч. в MENU/DEAD — живой фон
     this._updateStars(dt);
     this._updateCosmic(dt);
+    this._updateShootingStars(dt);
 
     this._render();
 
@@ -451,28 +455,42 @@ export class Game {
 
   // === Большие фоновые космические объекты (планеты, туманности) ===
   _makeCosmic() {
-    // Несколько крупных, очень малоконтрастных объектов. Двигаются заметно медленнее звёзд.
+    // Малоконтрастные фоновые объекты. Двигаются заметно медленнее звёзд.
     return [
-      // Гигантская планета сверху-справа
-      { type: 'planet', x: this.w * 0.78, y: this.h * 0.22, r: 110,
-        c1: 'rgba(220,160,120,0.20)', c2: 'rgba(100,40,40,0.12)', c3: 'rgba(40,15,15,0)',
-        dx: -0.05 },
-      // Газовая планета внизу-слева
-      { type: 'planet', x: this.w * 0.18, y: this.h * 0.78, r: 150,
-        c1: 'rgba(120,170,220,0.18)', c2: 'rgba(50,80,140,0.10)', c3: 'rgba(20,30,60,0)',
-        dx: -0.035 },
-      // Туманность по центру
-      { type: 'nebula', x: this.w * 0.5, y: this.h * 0.45, r: 240,
-        c1: 'rgba(220,80,180,0.10)', c2: 'rgba(100,30,120,0.05)', c3: 'rgba(20,10,40,0)',
+      // Огромный газовый гигант с полосами (Юпитер-подобный) — нижний-правый
+      { type: 'gasGiant', x: this.w * 0.85, y: this.h * 0.88, r: 230,
+        bgColor: 'rgba(36, 26, 18, 0.20)',
+        bands: [
+          { y: 0.08, color: 'rgba(180, 140,  95, 0.14)' },
+          { y: 0.18, color: 'rgba(130,  92,  62, 0.18)' },
+          { y: 0.30, color: 'rgba(205, 165, 115, 0.15)' },
+          { y: 0.42, color: 'rgba(115,  82,  55, 0.20)' },
+          { y: 0.54, color: 'rgba(170, 135, 100, 0.16)' },
+          { y: 0.68, color: 'rgba(105,  75,  50, 0.18)' },
+          { y: 0.82, color: 'rgba(160, 125,  90, 0.14)' },
+        ],
+        dx: -0.022 },
+      // Окольцованная планета (Сатурн-подобная) — верхний-левый
+      { type: 'ringedPlanet', x: this.w * 0.20, y: this.h * 0.15, r: 110,
+        ringTilt: -0.34,
+        bodyColor1: 'rgba(220, 195, 145, 0.20)',
+        bodyColor2: 'rgba(140, 110,  70, 0.14)',
+        bodyColor3: 'rgba(60,  40,  20, 0.06)',
+        ringColor:  'rgba(225, 200, 150, 0.18)',
+        ringInner:  'rgba(130, 100,  60, 0.10)',
         dx: -0.018 },
+      // Маленькая планета-спутник вдалеке
+      { type: 'planet', x: this.w * 1.4, y: this.h * 0.32, r: 55,
+        c1: 'rgba(255, 210, 140, 0.20)', c2: 'rgba(120,  60,  30, 0.10)', c3: 'rgba(40, 20, 10, 0)',
+        dx: -0.04 },
+      // Туманность мажента по центру
+      { type: 'nebula', x: this.w * 0.5, y: this.h * 0.45, r: 240,
+        c1: 'rgba(220, 80, 180, 0.08)', c2: 'rgba(100, 30, 120, 0.04)', c3: 'rgba(20, 10, 40, 0)',
+        dx: -0.014 },
       // Бирюзовая туманность далеко
       { type: 'nebula', x: this.w * 1.2, y: this.h * 0.65, r: 200,
-        c1: 'rgba(80,200,220,0.10)', c2: 'rgba(30,100,140,0.05)', c3: 'rgba(10,40,60,0)',
-        dx: -0.018 },
-      // Маленький "спутник"-планета далеко
-      { type: 'planet', x: this.w * 1.5, y: this.h * 0.12, r: 60,
-        c1: 'rgba(255,210,140,0.18)', c2: 'rgba(120,60,30,0.10)', c3: 'rgba(40,20,10,0)',
-        dx: -0.045 },
+        c1: 'rgba(80, 200, 220, 0.08)', c2: 'rgba(30, 100, 140, 0.04)', c3: 'rgba(10, 40, 60, 0)',
+        dx: -0.014 },
     ];
   }
 
@@ -486,17 +504,194 @@ export class Game {
 
   _renderCosmic(ctx) {
     for (const o of this.cosmic) {
-      const grad = ctx.createRadialGradient(
-        o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.05,
-        o.x, o.y, o.r
+      if (o.type === 'gasGiant') this._drawGasGiant(ctx, o);
+      else if (o.type === 'ringedPlanet') this._drawRingedPlanet(ctx, o);
+      else this._drawSimpleOrb(ctx, o);
+    }
+  }
+
+  // Простой радиальный объект (туманность, маленькая планета)
+  _drawSimpleOrb(ctx, o) {
+    const grad = ctx.createRadialGradient(
+      o.x - o.r * 0.3, o.y - o.r * 0.3, o.r * 0.05,
+      o.x, o.y, o.r
+    );
+    grad.addColorStop(0, o.c1);
+    grad.addColorStop(0.5, o.c2);
+    grad.addColorStop(1, o.c3);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Газовый гигант с горизонтальными полосами (Юпитер-подобный).
+  _drawGasGiant(ctx, o) {
+    ctx.save();
+    // Клипуем по кругу — всё, что нарисуем дальше, окажется внутри планеты.
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Фоновая заливка
+    ctx.fillStyle = o.bgColor;
+    ctx.fillRect(o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
+
+    // Полосы — мягкие горизонтальные градиенты, перетекают друг в друга
+    const diameter = o.r * 2;
+    for (const band of o.bands) {
+      const cy = o.y - o.r + band.y * diameter;
+      const bandH = diameter * 0.13;
+      const g = ctx.createLinearGradient(0, cy - bandH * 0.5, 0, cy + bandH * 0.5);
+      g.addColorStop(0,   'rgba(0,0,0,0)');
+      g.addColorStop(0.5, band.color);
+      g.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(o.x - o.r, cy - bandH * 0.5, diameter, bandH);
+    }
+
+    // Объём: лёгкое освещение слева-сверху + тёмный край справа-снизу.
+    const edge = ctx.createRadialGradient(
+      o.x - o.r * 0.35, o.y - o.r * 0.35, 0,
+      o.x, o.y, o.r
+    );
+    edge.addColorStop(0,    'rgba(255, 240, 200, 0.05)');
+    edge.addColorStop(0.55, 'rgba(0, 0, 0, 0)');
+    edge.addColorStop(1,    'rgba(0, 0, 0, 0.30)');
+    ctx.fillStyle = edge;
+    ctx.fillRect(o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
+
+    ctx.restore();
+  }
+
+  // Кольцевая планета (Сатурн-подобная) с правильным порядком слоёв:
+  // задняя часть кольца → корпус → передняя часть кольца.
+  _drawRingedPlanet(ctx, o) {
+    const { x, y, r, ringTilt } = o;
+    const ringRx = r * 1.95;
+    const ringRy = r * 0.42;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ringTilt);
+
+    // 1) Задняя половина кольца — клип по верхней половине локальных координат
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-ringRx - 8, -ringRy - 8, ringRx * 2 + 16, ringRy + 8);
+    ctx.clip();
+    this._strokeRing(ctx, ringRx, ringRy, o.ringColor, o.ringInner);
+    ctx.restore();
+
+    // 2) Корпус планеты
+    const grad = ctx.createRadialGradient(-r * 0.32, -r * 0.32, 0, 0, 0, r);
+    grad.addColorStop(0,    o.bodyColor1);
+    grad.addColorStop(0.55, o.bodyColor2);
+    grad.addColorStop(1,    o.bodyColor3);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3) Передняя половина кольца — клип по нижней половине
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-ringRx - 8, 0, ringRx * 2 + 16, ringRy + 8);
+    ctx.clip();
+    this._strokeRing(ctx, ringRx, ringRy, o.ringColor, o.ringInner);
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  _strokeRing(ctx, rx, ry, mainColor, innerColor) {
+    // Внешнее кольцо — толстый штрих
+    ctx.strokeStyle = mainColor;
+    ctx.lineWidth = ry * 0.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Внутренний разделитель (зазор Кассини)
+    ctx.strokeStyle = innerColor;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.88, ry * 0.88, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // === Падающие звёзды ===
+  _spawnShootingStar() {
+    // Угол падения: от диагонали вниз-влево, лёгкая случайность
+    const angle = Math.PI * 0.18 + (Math.random() - 0.5) * 0.35; // ~32° от вертикали
+    const speed = 11 + Math.random() * 5;
+    // Стартуем из верхней правой четверти, иногда слегка над экраном
+    const startX = this.w * 0.45 + Math.random() * this.w * 0.55;
+    const startY = -20 - Math.random() * 60;
+    this.shootingStars.push({
+      x: startX,
+      y: startY,
+      // Летят вниз-влево
+      vx: -Math.sin(angle) * speed,
+      vy: Math.cos(angle) * speed,
+      life: 38 + Math.random() * 12,
+      maxLife: 50,
+      length: 55 + Math.random() * 30,
+      width: 1.4 + Math.random() * 0.8,
+    });
+  }
+
+  _updateShootingStars(dt) {
+    const now = performance.now();
+    if (now >= this.nextShootingStarAt) {
+      this._spawnShootingStar();
+      // Иногда пускаем "пару" подряд для эффектного метеорного дождичка
+      if (Math.random() < 0.18) {
+        setTimeout(() => this._spawnShootingStar(), 150 + Math.random() * 250);
+      }
+      this.nextShootingStarAt = now + 4000 + Math.random() * 6000;
+    }
+    for (const s of this.shootingStars) {
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.life -= dt;
+    }
+    if (this.shootingStars.length) {
+      this.shootingStars = this.shootingStars.filter(
+        (s) => s.life > 0 && s.x > -100 && s.y < this.h + 100
       );
-      grad.addColorStop(0, o.c1);
-      grad.addColorStop(0.5, o.c2);
-      grad.addColorStop(1, o.c3);
-      ctx.fillStyle = grad;
+    }
+  }
+
+  _renderShootingStars(ctx) {
+    if (!this.shootingStars.length) return;
+    for (const s of this.shootingStars) {
+      const t = Math.max(0, Math.min(1, s.life / s.maxLife));
+      // Появляется ярко, угасает в конце
+      const alpha = t < 0.85 ? t / 0.85 : 1;
+      // Хвост в направлении, противоположном движению
+      const speed = Math.hypot(s.vx, s.vy);
+      const tx = s.x - (s.vx / speed) * s.length;
+      const ty = s.y - (s.vy / speed) * s.length;
+      // Линейный градиент: прозрачный хвост → яркая голова
+      const grad = ctx.createLinearGradient(tx, ty, s.x, s.y);
+      grad.addColorStop(0,    'rgba(255, 250, 200, 0)');
+      grad.addColorStop(0.55, `rgba(255, 240, 180, ${alpha * 0.45})`);
+      grad.addColorStop(1,    `rgba(255, 255, 255, ${alpha})`);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = s.width;
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(s.x, s.y);
+      ctx.stroke();
+      // Яркая голова с лёгким glow
+      ctx.shadowColor = 'rgba(255, 240, 180, 0.75)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.width * 1.1, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowBlur = 0;
     }
   }
 
@@ -558,6 +753,10 @@ export class Game {
 
     // Большие фоновые объекты (планеты, туманности) — низкоконтрастные
     this._renderCosmic(ctx);
+
+    // Падающие звёзды — рисуются после фоновых космо-объектов, но до обычных звёзд,
+    // чтобы их хвост проходил «за» точками-звёздами и читался естественно.
+    this._renderShootingStars(ctx);
 
     // Звёзды: большинство — статичные точки, лишь часть мерцает
     for (const layer of this.stars) {
