@@ -4,7 +4,7 @@ import { Storage } from './storage.js';
 import { Audio } from './audio.js';
 import { Physics } from './physics.js';
 import { ObstacleField } from './obstacles.js';
-import { drawRocket } from './skins.js';
+import { drawProbe } from './skins.js';
 import { Ads } from './ads.js';
 import { UI } from './ui.js';
 import { EndlessMode } from './modes.js';
@@ -32,7 +32,8 @@ export class Game {
       x: CONFIG.player.x,
       y: this.h / 2,
       vy: 0,
-      rotation: 0,
+      thrustDir: 0,       // 0=покой, -1=вверх, +1=вниз
+      lastThrustAt: -1e9, // время последнего "пшика" для визуального эффекта
     };
 
     this.obstacles = new ObstacleField(this.w, this.h);
@@ -44,7 +45,6 @@ export class Game {
 
     this.currentParams = this.mode.paramsForScore(0);
     this.lastTs = 0;
-    this.flameFlicker = 0;
 
     // Revive — лимита нет, ведётся только неуязвимость после возрождения
     this.invulnerableUntil = 0;
@@ -150,7 +150,8 @@ export class Game {
   _beginRound() {
     this.player.y = this.h / 2;
     this.player.vy = 0;
-    this.player.rotation = 0;
+    this.player.thrustDir = 0;
+    this.player.lastThrustAt = -1e9;
     this.obstacles.reset();
     this.score = 0;
     this.invulnerableUntil = 0;
@@ -183,7 +184,9 @@ export class Game {
   handleTap() {
     Audio.ensure();
     if (this.state !== STATE.PLAYING) return;
-    Physics.jump(this.player);
+    // Один тап — переключение направления (zero-G "пшик").
+    Physics.toggleDirection(this.player);
+    this.player.lastThrustAt = performance.now();
     Audio.playTap();
   }
 
@@ -200,9 +203,11 @@ export class Game {
       }
       // Чистим ближайшие препятствия для безопасного рестарта
       this.obstacles.clearNear(this.player.x, 220);
-      // Возвращаем ракету в центр по высоте, чтобы revive был "безопасным рестартом"
+      // Возвращаем зонд в центр и в покой — игрок сам решит, куда лететь после revive
       this.player.y = this.h / 2;
-      this.player.vy = CONFIG.jumpForce * 0.6;
+      this.player.vy = 0;
+      this.player.thrustDir = 0;
+      this.player.lastThrustAt = -1e9;
       this.invulnerableUntil = performance.now() + CONFIG.reviveInvulnerabilitySeconds * 1000;
       this.state = STATE.PLAYING;
       this.ui.showHud();
@@ -241,7 +246,6 @@ export class Game {
     const rawDt = Math.min(40, ts - this.lastTs);
     const dt = rawDt / 16.67;
     this.lastTs = ts;
-    this.flameFlicker += rawDt / 60;
 
     if (this.state === STATE.PLAYING) {
       // Физика
@@ -357,13 +361,20 @@ export class Game {
     // Препятствия
     this.obstacles.render(ctx);
 
-    // Игрок (с мерцанием при неуязвимости)
+    // Зонд (с мерцанием при неуязвимости)
     const invulnerable = performance.now() < this.invulnerableUntil;
     if (invulnerable) {
       const f = Math.sin(performance.now() / 70);
       ctx.globalAlpha = f > 0 ? 0.5 : 0.95;
     }
-    drawRocket(ctx, this.player.x, this.player.y, this.player.rotation, Storage.get('skin') || 'default', this.flameFlicker);
+    drawProbe(
+      ctx,
+      this.player.x,
+      this.player.y,
+      Storage.get('skin') || 'default',
+      this.player.lastThrustAt,
+      this.player.thrustDir
+    );
     ctx.globalAlpha = 1;
   }
 }

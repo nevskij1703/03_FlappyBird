@@ -1,22 +1,25 @@
-// physics.js — гравитация, импульс, границы.
-// dt — относительное время кадра (1 ≈ 16.67ms). Это позволяет независимость от FPS.
+// physics.js — zero-G движение.
+// Каждый тап переключает направление вертикального движения (Voyager-style).
+// Гравитации нет: после "пшика" зонд летит с постоянной скоростью до следующего тапа.
 import { CONFIG } from './config.js';
 
 export const Physics = {
   applyTick(player, dt) {
-    player.vy += CONFIG.gravity * dt;
-    if (player.vy > CONFIG.maxFallSpeed) player.vy = CONFIG.maxFallSpeed;
+    // Никакой гравитации — просто интегрируем позицию.
     player.y += player.vy * dt;
-    // плавный поворот ракеты в зависимости от vy
-    const targetRot = Math.max(-0.5, Math.min(1.2, player.vy * CONFIG.rotationFactor));
-    player.rotation += (targetRot - player.rotation) * 0.18 * dt;
   },
 
-  jump(player) {
-    player.vy = CONFIG.jumpForce;
+  // Переключает направление движения. Первый тап = вверх.
+  toggleDirection(player) {
+    if (player.thrustDir === 0) {
+      player.thrustDir = -1; // первый импульс — вверх
+    } else {
+      player.thrustDir = -player.thrustDir;
+    }
+    player.vy = CONFIG.thrustSpeed * player.thrustDir;
   },
 
-  // true, если ракета вылетела за верх или низ канваса
+  // true, если зонд вылетел за верх или низ канваса
   isOutOfBounds(player, h) {
     return player.y < -10 || player.y > h - 10;
   },
