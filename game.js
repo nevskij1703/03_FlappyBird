@@ -56,6 +56,11 @@ export class Game {
     // Фаза "покачивания" зонда на стартовом экране.
     this.menuHoverPhase = 0;
 
+    // Становится true после первой смерти в этой сессии. Используется как
+    // ворота для interstitial: при самом первом старте сессии рекламу не
+    // показываем — только когда игрок уже хоть раз разбился и хочет заново.
+    this.hasPlayedThisSession = false;
+
     this.obstacles = new ObstacleField(this.w, this.h);
     this.ui = new UI();
     this.mode = new EndlessMode();
@@ -167,11 +172,14 @@ export class Game {
     if (this.state === STATE.AD) return;
     Storage.increment('attempts');
 
-    if (Ads.shouldShowInterstitialBeforeAttempt()) {
+    // Interstitial показываем только если в этой сессии игрок уже хотя бы
+    // раз разбился. Самый первый старт сессии (перезаход на старте) — без рекламы.
+    if (this.hasPlayedThisSession && Ads.shouldShowInterstitialBeforeAttempt()) {
       this.state = STATE.AD;
       // Скрываем все экраны, чтобы под рекламой не было game over screen
       this.ui.hideAll();
       await Ads.showInterstitialAd();
+      // Кулдаун стартует здесь — после возвращения игрока из рекламы.
       Ads.markInterstitialShown();
     }
     this._beginRound();
@@ -267,6 +275,9 @@ export class Game {
     Audio.playCrash();
     Audio.vibrate([20, 30, 60]);
     Storage.increment('deathsSinceAd');
+    // С этого момента в текущей сессии разрешено показывать interstitial
+    // перед следующей попыткой (если пройдут остальные правила частоты/кулдауна).
+    this.hasPlayedThisSession = true;
 
     const isNewRecord = this.score > this.best;
     if (isNewRecord) {
