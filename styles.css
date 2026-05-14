@@ -116,12 +116,12 @@ button {
 
 #hud-best {
   position: absolute;
-  top: max(28px, env(safe-area-inset-top));
+  top: max(26px, env(safe-area-inset-top));
   right: 16px;
-  font-size: 14px;
+  font-size: 21px;
   font-weight: 700;
   color: #ffd86b;
-  text-shadow: 0 0 10px rgba(255, 200, 60, 0.6);
+  text-shadow: 0 0 12px rgba(255, 200, 60, 0.6);
   letter-spacing: 1px;
   font-variant-numeric: tabular-nums;
 }
@@ -143,13 +143,26 @@ button {
   animation: fadeIn 0.25s ease;
 }
 
-/* Стартовый экран: заголовок сверху, "ИГРАТЬ" — умеренно низко */
+/* Стартовый экран: фон полу-прозрачный, чтобы был виден огромный зонд на канвасе.
+   Заголовок сдвинут ниже, "ИГРАТЬ" — у самого низа. */
 #screen-start {
   justify-content: flex-start;
-  padding: 11% 24px 13% 24px;
+  padding: 22% 24px 14% 24px;
+  background: linear-gradient(180deg,
+    rgba(10, 14, 42, 0.45) 0%,
+    rgba(10, 14, 42, 0.15) 35%,
+    rgba(0, 0, 0, 0.55) 100%);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
 }
 #screen-start .btn-stack { margin-top: auto; }
-#screen-start .settings-row { margin-top: 22px; }
+
+/* Кнопка в верхнем-левом углу (звук на старте; пауза во время игры) */
+.corner-tl {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 14px;
+}
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -319,6 +332,71 @@ button {
   height: 20px;
   display: block;
   flex-shrink: 0;
+}
+
+/* ============ Pause-screen stats ============ */
+.pause-stats {
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+  margin: 8px 0 28px;
+}
+.pause-stat { text-align: center; }
+.pause-stat-label {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #b4f0ff;
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+.pause-stat-value {
+  font-size: 42px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 14px rgba(0, 220, 255, 0.7);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* ============ Settings list (label + toggle-pill) ============ */
+.settings-list {
+  width: 100%;
+  max-width: 320px;
+  margin: 8px 0 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+}
+.setting-label {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: #b4f0ff;
+}
+.toggle-pill {
+  min-width: 84px;
+  height: 36px;
+  border-radius: 18px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  border: 1.5px solid rgba(80, 220, 255, 0.45);
+  background: rgba(10, 20, 50, 0.6);
+  color: #80e8ff;
+  transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.toggle-pill:active { transform: scale(0.94); }
+.toggle-pill.off {
+  color: #5a6678;
+  background: rgba(20, 24, 40, 0.5);
+  border-color: rgba(100, 120, 140, 0.3);
 }
 
 /* ============ Settings icons ============ */

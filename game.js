@@ -21,6 +21,10 @@ const STATE = Object.freeze({
 
 // Длительность анимации крушения, мс — пока расходятся дым и обломки.
 const CRASH_TOTAL_MS = 1500;
+// Длительность вводной анимации (зонд уезжает из центра в левую игровую позицию).
+const INTRO_DURATION_MS = 700;
+// Масштаб увеличенного зонда на стартовом экране.
+const MENU_PROBE_SCALE = 1.7;
 
 export class Game {
   constructor(canvas) {
@@ -46,6 +50,11 @@ export class Game {
     this.crashAt = 0;
     this.crashExploded = false;
     this.crashParticles = [];
+
+    // Вводная анимация: 0 — не активна, иначе timestamp начала.
+    this.introAt = 0;
+    // Фаза "покачивания" зонда на стартовом экране.
+    this.menuHoverPhase = 0;
 
     this.obstacles = new ObstacleField(this.w, this.h);
     this.ui = new UI();
@@ -142,9 +151,10 @@ export class Game {
         const on = Storage.toggle('soundOn');
         if (on) Audio.playTap();
       },
-      toggleVibration: () => {
-        const on = Storage.toggle('vibrationOn');
-        if (on) Audio.vibrate(30);
+      toggleLang: () => {
+        const cur = (Storage.get('lang') || 'ru');
+        Storage.set('lang', cur === 'ru' ? 'en' : 'ru');
+        // Локализация ещё не реализована — переключатель только запоминает выбор.
       },
     });
   }
@@ -185,14 +195,21 @@ export class Game {
     this.ui.showHud();
     this.ui.updateScore(0);
     this.ui.updateBest(this.best);
+    // Старт вводной анимации (зонд уменьшается из центра в игровую позицию).
+    this.introAt = performance.now();
     this.lastTs = performance.now();
+  }
+
+  // Идёт ли сейчас вступительная анимация зонда?
+  _isIntroPlaying() {
+    return this.introAt > 0 && performance.now() - this.introAt < INTRO_DURATION_MS;
   }
 
   pause() {
     if (this.state !== STATE.PLAYING) return;
     this.state = STATE.PAUSED;
     this._stopNarrative();
-    this.ui.showPause();
+    this.ui.showPause(this.score, this.best);
   }
 
   // Возвращение в игру с отсчётом 3-2-1, чтобы игрок успел подготовиться.
@@ -211,6 +228,7 @@ export class Game {
   handleTap() {
     Audio.ensure();
     if (this.state !== STATE.PLAYING) return;
+    if (this._isIntroPlaying()) return; // вводная анимация — ввод заблокирован
     // Один тап — переключение направления (zero-G "пшик").
     Physics.toggleDirection(this.player);
     this.player.lastThrustAt = performance.now();
@@ -372,7 +390,7 @@ export class Game {
 
     if (this.state === STATE.CRASHING) {
       this._updateCrash(dt);
-    } else if (this.state === STATE.PLAYING) {
+    } else if (this.state === STATE.PLAYING && !this._isIntroPlaying()) {
       // Физика
       Physics.applyTick(this.player, dt);
       // Сложность
@@ -407,6 +425,8 @@ export class Game {
     this._updateStars(dt);
     this._updateCosmic(dt);
     this._updateShootingStars(dt);
+    // Покачивание зонда в меню
+    this.menuHoverPhase += dt * 0.045;
 
     this._render();
 
@@ -664,6 +684,29 @@ export class Game {
     // Зонд — мгновенно исчезает в момент удара (взрыв происходит на его месте).
     const isCrashing = this.state === STATE.CRASHING;
     if (!isCrashing) {
+      // Позиция/масштаб зависят от состояния:
+      //   MENU       — увеличенный, по центру, с лёгким покачиванием
+      //   PLAYING + intro — анимированный переход в игровую позицию
+      //   иначе       — на player.x / player.y
+      let displayX = this.player.x;
+      let displayY = this.player.y;
+      let displayScale = 1;
+      if (this.state === STATE.MENU) {
+        displayX = this.w / 2;
+        displayY = this.h / 2 + Math.sin(this.menuHoverPhase) * 10;
+        displayScale = MENU_PROBE_SCALE;
+      } else if (this._isIntroPlaying()) {
+        const tRaw = (performance.now() - this.introAt) / INTRO_DURATION_MS;
+        const t = Math.min(1, Math.max(0, tRaw));
+        // ease-in-out-cubic для плавного старта и финиша
+        const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        const startX = this.w / 2;
+        const startY = this.h / 2 + Math.sin(this.menuHoverPhase) * 10;
+        displayX = startX + (this.player.x - startX) * eased;
+        displayY = startY + (this.player.y - startY) * eased;
+        displayScale = MENU_PROBE_SCALE + (1 - MENU_PROBE_SCALE) * eased;
+      }
+
       const invulnerable = performance.now() < this.invulnerableUntil;
       if (invulnerable) {
         const f = Math.sin(performance.now() / 70);
@@ -671,11 +714,13 @@ export class Game {
       }
       drawProbe(
         ctx,
-        this.player.x,
-        this.player.y,
+        displayX,
+        displayY,
         Storage.get('skin') || 'default',
         this.player.lastThrustAt,
-        this.player.thrustDir
+        this.player.thrustDir,
+        0,
+        displayScale
       );
       ctx.globalAlpha = 1;
     }

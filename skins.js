@@ -67,7 +67,8 @@ export function getSkin(id) {
 // lastThrustAt — момент последнего тапа (ms), для эффекта "пшика".
 // thrustDir — текущее направление движения (-1 вверх, +1 вниз, 0 покой).
 // rotation — опциональный угол поворота (используется в анимации крушения).
-export function drawProbe(ctx, x, y, skinId, lastThrustAt, thrustDir, rotation = 0) {
+// scale — опциональный масштаб (используется на стартовом экране).
+export function drawProbe(ctx, x, y, skinId, lastThrustAt, thrustDir, rotation = 0, scale = 1) {
   const skin = getSkin(skinId);
   const now = performance.now();
   const tEl = now - (lastThrustAt || -1e9);
@@ -75,6 +76,7 @@ export function drawProbe(ctx, x, y, skinId, lastThrustAt, thrustDir, rotation =
 
   ctx.save();
   ctx.translate(x, y);
+  if (scale !== 1) ctx.scale(scale, scale);
 
   // === Облачко-"пшик" — рисуем В КАНВАС-КООРДИНАТАХ (до поворота тела). ===
   // Импульс направлен по вертикали в мире, поэтому облачко всегда снизу/сверху,

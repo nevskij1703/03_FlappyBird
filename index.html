@@ -34,24 +34,17 @@
 
       <!-- Стартовый экран -->
       <div id="screen-start" class="screen">
+        <button id="btn-sound" class="hud-btn corner-tl" aria-label="Звук">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M3 10v4h4l5 5V5L7 10H3z"/>
+            <path d="M16 12c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.73 2.5-2.25 2.5-4.02z"/>
+            <path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+        </button>
         <h1 class="title">ВОЯДЖЕР&nbsp;<span class="title-num">1</span></h1>
         <div class="best-line">Рекорд: <span id="start-best">0</span></div>
         <div class="btn-stack">
           <button id="btn-mode-endless" class="btn btn-primary">ИГРАТЬ</button>
-        </div>
-        <div class="settings-row">
-          <button id="btn-sound" class="icon-btn" aria-label="Звук">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M3 10v4h4l5 5V5L7 10H3z"/>
-              <path d="M16 12c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.73 2.5-2.25 2.5-4.02z"/>
-              <path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-          </button>
-          <button id="btn-vibration" class="icon-btn" aria-label="Вибрация">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M0 9v6h2V9H0zm3-2v10h2V7H3zm19 2v6h2V9h-2zm-3-2v10h2V7h-2zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z"/>
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -90,22 +83,32 @@
       <!-- Экран паузы -->
       <div id="screen-pause" class="screen hidden">
         <h2 class="screen-title">ПАУЗА</h2>
+        <div class="pause-stats">
+          <div class="pause-stat">
+            <div class="pause-stat-label">Очки</div>
+            <div id="pause-score" class="pause-stat-value">0</div>
+          </div>
+          <div class="pause-stat">
+            <div class="pause-stat-label">Рекорд</div>
+            <div id="pause-best" class="pause-stat-value">0</div>
+          </div>
+        </div>
+        <div class="settings-list">
+          <div class="setting-row">
+            <span class="setting-label">Звук</span>
+            <button id="btn-sound-pause" class="toggle-pill" aria-pressed="true">
+              <span class="toggle-text">ВКЛ</span>
+            </button>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Язык</span>
+            <button id="btn-lang-pause" class="toggle-pill" aria-label="Язык">
+              <span class="toggle-text">RU</span>
+            </button>
+          </div>
+        </div>
         <div class="btn-stack">
           <button id="btn-resume" class="btn btn-primary">ПРОДОЛЖИТЬ</button>
-        </div>
-        <div class="settings-row">
-          <button id="btn-sound-pause" class="icon-btn" aria-label="Звук">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M3 10v4h4l5 5V5L7 10H3z"/>
-              <path d="M16 12c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.73 2.5-2.25 2.5-4.02z"/>
-              <path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-            </svg>
-          </button>
-          <button id="btn-vibration-pause" class="icon-btn" aria-label="Вибрация">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M0 9v6h2V9H0zm3-2v10h2V7H3zm19 2v6h2V9h-2zm-3-2v10h2V7h-2zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z"/>
-            </svg>
-          </button>
         </div>
       </div>
 

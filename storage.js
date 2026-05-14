@@ -8,7 +8,8 @@ const DEFAULTS = {
   attempts: 0,
   deathsSinceAd: 0,
   soundOn: true,
-  vibrationOn: true,
+  vibrationOn: true,  // вибрация по умолчанию включена, тумблер удалён из UI
+  lang: 'ru',         // зарезервировано под локализацию (тумблер в паузе)
   skin: 'default',
   coins: 0,
 };

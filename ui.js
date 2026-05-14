@@ -13,7 +13,6 @@ export class UI {
       startBest: document.getElementById('start-best'),
       btnEndless: document.getElementById('btn-mode-endless'),
       btnSound: document.getElementById('btn-sound'),
-      btnVibration: document.getElementById('btn-vibration'),
 
       gameover: document.getElementById('screen-gameover'),
       gameoverScore: document.getElementById('gameover-score'),
@@ -23,10 +22,12 @@ export class UI {
       btnRestart: document.getElementById('btn-restart'),
 
       pause: document.getElementById('screen-pause'),
+      pauseScore: document.getElementById('pause-score'),
+      pauseBest: document.getElementById('pause-best'),
       btnPause: document.getElementById('btn-pause'),
       btnResume: document.getElementById('btn-resume'),
       btnSoundPause: document.getElementById('btn-sound-pause'),
-      btnVibrationPause: document.getElementById('btn-vibration-pause'),
+      btnLangPause: document.getElementById('btn-lang-pause'),
 
       countdown: document.getElementById('countdown'),
       countdownNum: document.getElementById('countdown-num'),
@@ -39,7 +40,6 @@ export class UI {
     for (const s of this.allScreens) s.classList.add('hidden');
   }
 
-  // Скрыть и экраны, и HUD (используется на время показа interstitial-рекламы).
   hideAll() {
     this._hideAll();
     this.el.hud.classList.add('hidden');
@@ -51,6 +51,7 @@ export class UI {
     this.el.hud.classList.add('hidden');
     this.el.startBest.textContent = String(Storage.get('bestScore') || 0);
     this._syncSoundButtons();
+    this._syncLangButton();
     this.el.start.classList.remove('hidden');
   }
 
@@ -76,8 +77,11 @@ export class UI {
     this.el.gameover.classList.remove('hidden');
   }
 
-  showPause() {
+  showPause(score, best) {
+    this.el.pauseScore.textContent = String(score);
+    this.el.pauseBest.textContent = String(best);
     this._syncSoundButtons();
+    this._syncLangButton();
     this.el.pause.classList.remove('hidden');
   }
 
@@ -86,7 +90,6 @@ export class UI {
   }
 
   // Отсчёт 3..2..1 перед возобновлением игры.
-  // onDone вызывается, когда отсчёт закончился.
   showCountdown(seconds, onDone) {
     this.hideCountdown();
     const overlay = this.el.countdown;
@@ -109,11 +112,9 @@ export class UI {
     this._countdownTimer = setTimeout(step, 1000);
   }
 
-  // Перезапускает CSS-анимацию pulse на счётчике.
   _renderCountdownTick(num, value) {
     num.textContent = String(value);
     num.style.animation = 'none';
-    // force reflow, чтобы анимация сработала заново
     void num.offsetWidth;
     num.style.animation = '';
   }
@@ -128,30 +129,41 @@ export class UI {
 
   _syncSoundButtons() {
     const sound = Storage.get('soundOn') !== false;
-    const vib = Storage.get('vibrationOn') !== false;
-    [this.el.btnSound, this.el.btnSoundPause].forEach((b) => {
-      if (!b) return;
-      b.classList.toggle('off', !sound);
-    });
-    [this.el.btnVibration, this.el.btnVibrationPause].forEach((b) => {
-      if (!b) return;
-      b.classList.toggle('off', !vib);
-    });
+    // Иконка в верхнем левом углу старта
+    if (this.el.btnSound) {
+      this.el.btnSound.classList.toggle('off', !sound);
+    }
+    // Текстовая пилюля в паузе
+    if (this.el.btnSoundPause) {
+      this.el.btnSoundPause.classList.toggle('off', !sound);
+      const t = this.el.btnSoundPause.querySelector('.toggle-text');
+      if (t) t.textContent = sound ? 'ВКЛ' : 'ВЫКЛ';
+      this.el.btnSoundPause.setAttribute('aria-pressed', String(sound));
+    }
   }
 
-  // Удобный bind — Game подаёт колбэки, UI подвешивает на все кнопки.
+  _syncLangButton() {
+    if (!this.el.btnLangPause) return;
+    const lang = (Storage.get('lang') || 'ru').toUpperCase();
+    const t = this.el.btnLangPause.querySelector('.toggle-text');
+    if (t) t.textContent = lang;
+  }
+
+  // Game подаёт колбэки, UI подвешивает на все кнопки.
   bind(handlers) {
-    this.el.btnEndless.onclick      = () => handlers.startEndless?.();
-    this.el.btnRevive.onclick       = () => handlers.revive?.();
-    this.el.btnRestart.onclick      = () => handlers.restart?.();
-    this.el.btnPause.onclick        = () => handlers.pause?.();
-    this.el.btnResume.onclick       = () => handlers.resume?.();
+    const setClick = (el, fn) => { if (el) el.onclick = fn; };
+    setClick(this.el.btnEndless,  () => handlers.startEndless?.());
+    setClick(this.el.btnRevive,   () => handlers.revive?.());
+    setClick(this.el.btnRestart,  () => handlers.restart?.());
+    setClick(this.el.btnPause,    () => handlers.pause?.());
+    setClick(this.el.btnResume,   () => handlers.resume?.());
 
     const onToggleSound = () => { handlers.toggleSound?.(); this._syncSoundButtons(); };
-    const onToggleVib = () => { handlers.toggleVibration?.(); this._syncSoundButtons(); };
-    this.el.btnSound.onclick = onToggleSound;
-    this.el.btnVibration.onclick = onToggleVib;
-    this.el.btnSoundPause.onclick = onToggleSound;
-    this.el.btnVibrationPause.onclick = onToggleVib;
+    setClick(this.el.btnSound, onToggleSound);
+    setClick(this.el.btnSoundPause, onToggleSound);
+    setClick(this.el.btnLangPause, () => {
+      handlers.toggleLang?.();
+      this._syncLangButton();
+    });
   }
 }
