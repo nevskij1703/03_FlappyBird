@@ -12,6 +12,7 @@ const DEFAULTS = {
   lang: 'ru',         // зарезервировано под локализацию (тумблер в паузе)
   skin: 'default',
   coins: 0,
+  ratedInStore: false, // нажал ли игрок "Оценить" в попапе rate-us — после true попап больше не показывается
 };
 
 function read(key) {

@@ -65,6 +65,10 @@ export class Game {
     // показываем — только когда игрок уже хоть раз разбился и хочет заново.
     this.hasPlayedThisSession = false;
 
+    // Счётчик стартов в текущей сессии (сбрасывается при перезагрузке страницы).
+    // Используется для показа Rate-us попапа перед 3-й попыткой.
+    this.attemptsStartedThisSession = 0;
+
     this.obstacles = new ObstacleField(this.w, this.h);
     this.ui = new UI();
     this.mode = new EndlessMode();
@@ -170,11 +174,18 @@ export class Game {
 
   // === Стейт-переходы ===
 
-  // Точка входа в попытку. Сначала проверяет рекламу, потом запускает раунд.
+  // Точка входа в попытку. Сначала проверяет rate-popup и рекламу, потом запускает раунд.
   async startGame() {
     // Если уже показывается реклама — не запускаем повторно
     if (this.state === STATE.AD) return;
     Storage.increment('attempts');
+
+    // Rate-us попап: перед 3-й попыткой сессии, если игрок ещё не оценил.
+    // attemptsStartedThisSession == 2 → две попытки уже стартанули, сейчас будет третья.
+    if (this.attemptsStartedThisSession === 2 && !Storage.get('ratedInStore')) {
+      this.ui.hideAll();
+      await this._showRatePopup();
+    }
 
     // Interstitial показываем только если в этой сессии игрок уже хотя бы
     // раз разбился. Самый первый старт сессии (перезаход на старте) — без рекламы.
@@ -187,6 +198,34 @@ export class Game {
       Ads.markInterstitialShown();
     }
     this._beginRound();
+  }
+
+  // Показывает попап "Спасибо за помощь!" с 5 звёздами.
+  // Промис резолвится, когда игрок нажмёт "Оценить" (и в сторе зафиксируется
+  // ratedInStore=true) или "Может позже" (просто закрывает).
+  _showRatePopup() {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('rate-overlay');
+      const btnRate = document.getElementById('btn-rate');
+      const btnLater = document.getElementById('btn-rate-later');
+      if (!overlay || !btnRate || !btnLater) { resolve(); return; }
+
+      overlay.classList.remove('hidden');
+      const close = (rated) => {
+        overlay.classList.add('hidden');
+        btnRate.onclick = null;
+        btnLater.onclick = null;
+        if (rated) {
+          Storage.set('ratedInStore', true);
+          // TODO: подставить URL приложения в РуСтор / Google Play и раскомментировать:
+          // window.open('https://apps.rustore.ru/app/com.matryoshka.cosmoflight', '_blank');
+          console.log('[rate] opening store (stub)');
+        }
+        resolve();
+      };
+      btnRate.onclick = () => close(true);
+      btnLater.onclick = () => close(false);
+    });
   }
 
   _beginRound() {
@@ -210,6 +249,8 @@ export class Game {
     // Старт вводной анимации (зонд уменьшается из центра в игровую позицию).
     this.introAt = performance.now();
     this.lastTs = performance.now();
+    // Учитываем эту попытку в сессионном счётчике (для rate-popup).
+    this.attemptsStartedThisSession++;
   }
 
   // Идёт ли сейчас вступительная анимация зонда?

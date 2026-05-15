@@ -616,6 +616,90 @@ button {
   100% { transform: scale(0.85); opacity: 0.0; }
 }
 
+/* ============ Rate-us popup ============ */
+.rate-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fadeIn 0.25s ease;
+}
+.rate-card {
+  width: 100%;
+  max-width: 320px;
+  padding: 28px 24px 22px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #1a1d3a 0%, #0a0e1e 100%);
+  border: 1.5px solid rgba(80, 220, 255, 0.4);
+  box-shadow: 0 0 40px rgba(0, 200, 255, 0.25),
+              0 8px 30px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+.rate-title {
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  line-height: 1.05;
+  margin: 0 0 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #80e8ff 60%, #5cc8ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 28px rgba(80, 220, 255, 0.5);
+  filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.4));
+}
+.rate-stars {
+  font-size: 44px;
+  letter-spacing: 4px;
+  color: #ffd86b;
+  text-shadow: 0 0 16px rgba(255, 200, 80, 0.85),
+               0 0 32px rgba(255, 200, 80, 0.45);
+  line-height: 1;
+  margin-bottom: 18px;
+  user-select: none;
+}
+.rate-desc {
+  font-size: 15px;
+  font-weight: 500;
+  color: #b4f0ff;
+  letter-spacing: 0.3px;
+  line-height: 1.4;
+  margin: 0 0 22px;
+}
+.rate-highlight {
+  color: #ffd86b;
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(255, 200, 80, 0.65);
+}
+.rate-overlay .btn-stack { gap: 8px; }
+
+/* Маленькая текстовая кнопка ("Может позже") */
+.btn-text-small {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(180, 230, 255, 0.42);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  padding: 10px;
+  min-height: 36px;
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.12s ease;
+}
+.btn-text-small:hover { color: rgba(180, 230, 255, 0.7); }
+.btn-text-small:active {
+  color: rgba(180, 230, 255, 0.95);
+  transform: scale(0.97);
+}
+
 /* ============ Ad overlay ============ */
 .ad {
   position: absolute;
