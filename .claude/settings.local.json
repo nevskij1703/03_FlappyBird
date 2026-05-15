@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init *)",
+      "Bash(git branch *)",
+      "Bash(git remote *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(where python *)",
+      "Bash(where py *)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git push *)",
+      "Bash(awk 'NR>=150 && NR<=165' ui.js)",
+      "Bash(curl -sI http://localhost:8773/ui.js)",
+      "Bash(curl -v http://localhost:8773/)"
+    ]
+  }
+}
