@@ -24,12 +24,20 @@ class AdManager {
     this.titleEl = null;
     this.timerEl = null;
     this.busy = false;
-    this.backend = null;             // lazy — определяется при первом показе
+    this.backend = null;             // определяется в _ensureBackend() ниже
     this.pendingInterstitial = null;
     this.pendingRewarded = null;
     // Время последнего УСПЕШНОГО показа interstitial (performance.now()).
     // Сессионная переменная, не сохраняется в Storage.
     this.lastInterstitialAt = 0;
+
+    // Eager init: определяем backend и запускаем preload СРАЗУ при создании
+    // синглтона, не дожидаясь первого showInterstitialAd. Иначе lazy-init
+    // запускает preload одновременно с первым show — и Java не успевает
+    // прогреть рекламу, первый показ висит 2-3 секунды на сетевой загрузке.
+    // К моменту new AdManager() импорты CONFIG/Storage уже резолвлены,
+    // а Capacitor зарегистрировал window.YandexAds bridge до загрузки страницы.
+    this._ensureBackend();
   }
 
   _ensureBackend() {

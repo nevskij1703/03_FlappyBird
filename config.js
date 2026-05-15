@@ -39,8 +39,15 @@ export const CONFIG = {
   },
 
   // === Реклама ===
+  // Контракт: см. docs/ADS.md.
+  // Если в WebView APK подключён нативный Yandex Mobile Ads SDK через html2apk
+  // (-YandexAdsBridge), JS дёргает window.YandexAds.* и слушает
+  // window.__yandexAdsCallback. В браузере без bridge'а — mock с DOM-оверлеем.
   ads: {
-    mockAds: true,                        // TODO: false — для боевого режима с реальной рекламой
+    mockAds: false,                       // true → принудительный mock (полезно для dev)
+    // Yandex Mobile Ads unit-ID (partner.yandex.ru/mobile-ads).
+    unitInterstitial: 'R-M-19273499-1',
+    unitRewarded:     'R-M-19273499-2',
     interstitialAfterDeaths: 3,           // показывать перед каждой N-ной попыткой (после стольких смертей подряд)
     firstAttemptsWithoutAds: 2,           // первые N попыток — без рекламы
     rewardedReviveEnabled: true,
