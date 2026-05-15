@@ -1,0 +1,7 @@
+{
+  "_comment": "Состояние последнего опубликованного в РуСтор релиза. Обновляется ВРУЧНУЮ после реальной публикации. Используется skill `prepare-release-candidate`.",
+  "lastPublishedSchemaVersion": null,
+  "lastPublishedVersionCode": null,
+  "lastPublishedVersionName": null,
+  "lastPublishedAt": null
+}

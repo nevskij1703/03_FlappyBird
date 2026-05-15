@@ -226,7 +226,7 @@ export class Game {
         if (rated) {
           Storage.set('ratedInStore', true);
           // TODO: подставить URL приложения в РуСтор / Google Play и раскомментировать:
-          // window.open('https://apps.rustore.ru/app/com.matryoshka.cosmoflight', '_blank');
+          // window.open('https://apps.rustore.ru/app/com.terekh.cosmoflight', '_blank');
           console.log('[rate] opening store (stub)');
         }
         resolve(rated);
