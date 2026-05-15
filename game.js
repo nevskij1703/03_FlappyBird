@@ -182,14 +182,22 @@ export class Game {
 
     // Rate-us попап: перед 3-й попыткой сессии, если игрок ещё не оценил.
     // attemptsStartedThisSession == 2 → две попытки уже стартанули, сейчас будет третья.
+    // Возвращает true, если игрок согласился оценить (нажал "Оценить"); тогда
+    // interstitial в эту попытку пропускаем — игрока уже один раз отвлекли.
+    let skipAdBecauseRated = false;
     if (this.attemptsStartedThisSession === 2 && !Storage.get('ratedInStore')) {
       this.ui.hideAll();
-      await this._showRatePopup();
+      const rated = await this._showRatePopup();
+      if (rated) skipAdBecauseRated = true;
     }
 
-    // Interstitial показываем только если в этой сессии игрок уже хотя бы
-    // раз разбился. Самый первый старт сессии (перезаход на старте) — без рекламы.
-    if (this.hasPlayedThisSession && Ads.shouldShowInterstitialBeforeAttempt()) {
+    // Interstitial показываем только если:
+    //  • в этой сессии игрок уже хотя бы раз разбился (не на самом первом старте);
+    //  • игрок только что НЕ нажал "Оценить" в Rate-us попапе;
+    //  • остальные правила частоты/кулдауна проходят.
+    if (!skipAdBecauseRated
+        && this.hasPlayedThisSession
+        && Ads.shouldShowInterstitialBeforeAttempt()) {
       this.state = STATE.AD;
       // Скрываем все экраны, чтобы под рекламой не было game over screen
       this.ui.hideAll();
@@ -201,14 +209,14 @@ export class Game {
   }
 
   // Показывает попап "Спасибо за помощь!" с 5 звёздами.
-  // Промис резолвится, когда игрок нажмёт "Оценить" (и в сторе зафиксируется
-  // ratedInStore=true) или "Может позже" (просто закрывает).
+  // Промис резолвится в `true`, если игрок нажал "Оценить" (и в сторе
+  // зафиксируется ratedInStore=true), или в `false` — если "Может позже".
   _showRatePopup() {
     return new Promise((resolve) => {
       const overlay = document.getElementById('rate-overlay');
       const btnRate = document.getElementById('btn-rate');
       const btnLater = document.getElementById('btn-rate-later');
-      if (!overlay || !btnRate || !btnLater) { resolve(); return; }
+      if (!overlay || !btnRate || !btnLater) { resolve(false); return; }
 
       overlay.classList.remove('hidden');
       const close = (rated) => {
@@ -221,7 +229,7 @@ export class Game {
           // window.open('https://apps.rustore.ru/app/com.matryoshka.cosmoflight', '_blank');
           console.log('[rate] opening store (stub)');
         }
-        resolve();
+        resolve(rated);
       };
       btnRate.onclick = () => close(true);
       btnLater.onclick = () => close(false);
