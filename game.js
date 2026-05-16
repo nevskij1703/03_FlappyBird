@@ -169,6 +169,16 @@ export class Game {
         Storage.set('lang', cur === 'ru' ? 'en' : 'ru');
         // Локализация ещё не реализована — переключатель только запоминает выбор.
       },
+      openPrivacy: () => {
+        // Открываем политику конфиденциальности в системном браузере.
+        // В WebView APK у нас перехватывается через intent — открывается
+        // в браузере Android; в обычном браузере — новая вкладка.
+        try {
+          window.open('https://cloud.mail.ru/public/KkNS/kzAGja7yB', '_blank', 'noopener,noreferrer');
+        } catch (e) {
+          console.warn('[privacy] open failed', e);
+        }
+      },
     });
   }
 

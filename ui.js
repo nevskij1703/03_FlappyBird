@@ -29,6 +29,7 @@ export class UI {
       btnResume: document.getElementById('btn-resume'),
       btnSoundPause: document.getElementById('btn-sound-pause'),
       btnLangPause: document.getElementById('btn-lang-pause'),
+      btnPrivacy: document.getElementById('btn-privacy'),
 
       countdown: document.getElementById('countdown'),
       countdownNum: document.getElementById('countdown-num'),
@@ -170,5 +171,7 @@ export class UI {
     const onToggleLang = () => { handlers.toggleLang?.(); this._syncLangButton(); };
     setClick(this.el.btnLang, onToggleLang);
     setClick(this.el.btnLangPause, onToggleLang);
+
+    setClick(this.el.btnPrivacy, () => handlers.openPrivacy?.());
   }
 }

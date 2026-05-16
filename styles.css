@@ -700,6 +700,13 @@ button {
   transform: scale(0.97);
 }
 
+/* Текстовая ссылка на политику конфиденциальности в окне паузы */
+.privacy-link {
+  text-decoration: underline;
+  text-decoration-color: rgba(180, 230, 255, 0.25);
+  text-underline-offset: 3px;
+}
+
 /* ============ Ad overlay ============ */
 .ad {
   position: absolute;
