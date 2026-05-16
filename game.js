@@ -30,12 +30,18 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false });
-    // Логическая ШИРИНА фиксирована (CONFIG.canvasLogicalWidth = 432).
-    // Логическая ВЫСОТА адаптируется к аспекту viewport — на современных
-    // вытянутых телефонах (9:19.5, 9:21) канвас выше, и игра занимает весь
-    // экран без чёрных полос. Минимум — оригинальные 9:16 (768).
+    // Игровая зона ФИКСИРОВАНА (432×768) — это «честное» поле, одинаковое
+    // на всех устройствах. В нём живут препятствия, игрок, физика — поэтому
+    // на длинных и коротких экранах коридоры всегда одной ширины и спавнятся
+    // в одинаковом диапазоне Y.
     this.w = CONFIG.canvasLogicalWidth;
-    this.h = this._computeLogicalHeight();
+    this.playH = CONFIG.canvasLogicalHeight;
+    // Высота визуального канваса адаптируется под viewport — но игровая зона
+    // ВНУТРИ канваса остаётся 768, отцентрована вертикально. Сверху и снизу
+    // от игровой зоны рендерится только фон (звёзды, туманности) — на вытянутых
+    // телефонах это «расширение космоса» вместо чёрных полос.
+    this.h = this._computeCanvasHeight();
+    this.playOffsetY = Math.max(0, Math.round((this.h - this.playH) / 2));
     // Поднимаем backing store до physical-DPI, чтобы Canvas не размывался
     // при CSS-растяжении на hi-DPI экранах. Всё игровое API оперирует
     // логическими координатами — ctx.scale(dpr, dpr) делает их совместимыми.
@@ -47,7 +53,7 @@ export class Game {
 
     this.player = {
       x: CONFIG.player.x,
-      y: this.h / 2,
+      y: this.playH / 2,
       vx: 0,              // используется только в фазе CRASHING
       vy: 0,
       thrustDir: 0,       // 0=покой, -1=вверх, +1=вниз
@@ -73,7 +79,9 @@ export class Game {
     // Используется для показа Rate-us попапа перед 3-й попыткой.
     this.attemptsStartedThisSession = 0;
 
-    this.obstacles = new ObstacleField(this.w, this.h);
+    // ObstacleField всегда работает в координатах игровой зоны 432×768
+    // — спавн препятствий не зависит от того, на каком экране играем.
+    this.obstacles = new ObstacleField(this.w, this.playH);
     this.ui = new UI();
     this.mode = new EndlessMode();
     this.score = 0;
@@ -114,33 +122,41 @@ export class Game {
     requestAnimationFrame(this._tick);
   }
 
-  // === Расчёт логической высоты канваса под аспект viewport ===
-  // На «вытянутых» экранах канвас выше, игровое поле занимает весь viewport.
-  // На landscape/quadrat — минимум 9:16 (768), сцена будет letterbox по бокам.
-  _computeLogicalHeight() {
+  // === Расчёт ВИЗУАЛЬНОЙ высоты канваса ===
+  // Игровая зона всегда 432×768 (this.playH). Канвас расширяется по вертикали,
+  // только если viewport вытянутый — чтобы заполнить «лишнее» место сверху и снизу
+  // продолжением фона (звёзды, космос). Никогда не сжимается ниже playH.
+  _computeCanvasHeight() {
     const vw = window.innerWidth || this.w;
-    const vh = window.innerHeight || CONFIG.canvasLogicalHeight;
-    const minH = CONFIG.canvasLogicalHeight;
+    const vh = window.innerHeight || this.playH;
+    const minH = this.playH;
+    // Расчёт по аспекту экрана: канвас должен заполнить viewport без чёрных полос.
+    // На квадратных / коротких экранах получится h <= playH → клампим в playH
+    // (тогда сработает letterbox по бокам через _fitCanvas).
     return Math.max(minH, Math.round(this.w * (vh / vw)));
   }
 
   // === Размещение канваса на экране ===
-  // Portrait: stage = viewport, канвас заполняет полностью (никаких чёрных полос).
-  // Landscape: stage letterbox-нут до аспекта канваса (9:16+ на портретных, или
-  // оригинальные 9:16 если viewport почти квадратный).
+  // Portrait вытянутый: stage = viewport, канвас расширен по вертикали (extra
+  // космос сверху/снизу от игровой зоны).
+  // Landscape / квадрат: stage letterbox-нут до аспекта канваса (всегда 432×768).
   _fitCanvas() {
     const apply = () => {
-      // Пересчёт логической высоты при ресайзе / повороте — расширяем/сжимаем
-      // backing store, чтобы пиксели оставались чёткими.
-      const newH = this._computeLogicalHeight();
+      // Пересчёт визуальной высоты при ресайзе / повороте — расширяем backing store,
+      // чтобы пиксели оставались чёткими, а игровая зона — отцентрованной.
+      const newH = this._computeCanvasHeight();
       if (newH !== this.h) {
         this.h = newH;
+        this.playOffsetY = Math.max(0, Math.round((this.h - this.playH) / 2));
         this.canvas.width = this.w * this.dpr;
         this.canvas.height = this.h * this.dpr;
         this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-        // Клампим игрока в новые границы (защита от вылета при resize в полёте).
+        // Перетряхиваем фоновые объекты — их позиции опираются на this.h.
+        this.stars = this._makeStars();
+        this.cosmic = this._makeCosmic();
+        // Игрок живёт в координатах [0, playH] — клампим на случай ресайза в полёте.
         if (this.player) {
-          this.player.y = Math.max(20, Math.min(this.h - 20, this.player.y));
+          this.player.y = Math.max(20, Math.min(this.playH - 20, this.player.y));
         }
       }
       const stage = document.getElementById('stage');
@@ -280,7 +296,7 @@ export class Game {
 
   _beginRound() {
     this.player.x = CONFIG.player.x;
-    this.player.y = this.h / 2;
+    this.player.y = this.playH / 2;
     this.player.vx = 0;
     this.player.vy = 0;
     this.player.thrustDir = 0;
@@ -352,7 +368,7 @@ export class Game {
       // Чистим ближайшие препятствия для безопасного рестарта
       this.obstacles.clearNear(this.player.x, 220);
       // Возвращаем зонд в центр и в покой — игрок сам решит, куда лететь после revive
-      this.player.y = this.h / 2;
+      this.player.y = this.playH / 2;
       this.player.vy = 0;
       this.player.thrustDir = 0;
       this.player.lastThrustAt = -1e9;
@@ -517,13 +533,13 @@ export class Game {
         const hb = Physics.hitbox(this.player);
         if (this.obstacles.checkCollision(hb)) {
           this.die();
-        } else if (Physics.isOutOfBounds(this.player, this.h)) {
+        } else if (Physics.isOutOfBounds(this.player, this.playH)) {
           this.die();
         }
       } else {
-        // При неуязвимости клампим игрока в границы (защита от вылета)
+        // При неуязвимости клампим игрока в границы игровой зоны (защита от вылета)
         if (this.player.y < 20) { this.player.y = 20; this.player.vy = 0; }
-        if (this.player.y > this.h - 20) { this.player.y = this.h - 20; this.player.vy = 0; }
+        if (this.player.y > this.playH - 20) { this.player.y = this.playH - 20; this.player.vy = 0; }
       }
     }
 
@@ -784,6 +800,13 @@ export class Game {
     }
     ctx.globalAlpha = 1;
 
+    // === Игровая зона (432×768) — отцентрована вертикально в канвасе. ===
+    // Препятствия, зонд, частицы взрыва живут в координатах [0, playH] и
+    // смещаются translation'ом на playOffsetY. На длинном экране это даёт
+    // отступ сверху/снизу, заполненный фоном (без препятствий).
+    ctx.save();
+    ctx.translate(0, this.playOffsetY);
+
     // Препятствия
     this.obstacles.render(ctx);
 
@@ -791,7 +814,7 @@ export class Game {
     const isCrashing = this.state === STATE.CRASHING;
     if (!isCrashing) {
       // Позиция/масштаб зависят от состояния:
-      //   MENU       — увеличенный, по центру, с лёгким покачиванием
+      //   MENU       — увеличенный, по центру игровой зоны, с лёгким покачиванием
       //   PLAYING + intro — анимированный переход в игровую позицию
       //   иначе       — на player.x / player.y
       let displayX = this.player.x;
@@ -799,7 +822,7 @@ export class Game {
       let displayScale = 1;
       if (this.state === STATE.MENU) {
         displayX = this.w / 2;
-        displayY = this.h / 2 + Math.sin(this.menuHoverPhase) * 10;
+        displayY = this.playH / 2 + Math.sin(this.menuHoverPhase) * 10;
         displayScale = MENU_PROBE_SCALE;
       } else if (this._isIntroPlaying()) {
         const tRaw = (performance.now() - this.introAt) / INTRO_DURATION_MS;
@@ -807,7 +830,7 @@ export class Game {
         // ease-in-out-cubic для плавного старта и финиша
         const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         const startX = this.w / 2;
-        const startY = this.h / 2 + Math.sin(this.menuHoverPhase) * 10;
+        const startY = this.playH / 2 + Math.sin(this.menuHoverPhase) * 10;
         displayX = startX + (this.player.x - startX) * eased;
         displayY = startY + (this.player.y - startY) * eased;
         displayScale = MENU_PROBE_SCALE + (1 - MENU_PROBE_SCALE) * eased;
@@ -838,6 +861,8 @@ export class Game {
       // Уже DEAD, но частицы ещё долетают
       this._renderExplosion(ctx);
     }
+
+    ctx.restore();
 
     // Затемнение нижней четверти — чтобы фразы нарратива читались лучше.
     // Рисуется поверх всего на канвасе, но НИЖЕ DOM-узла .narrative (тот z-index:4).
@@ -888,7 +913,8 @@ export class Game {
       fgrad.addColorStop(0.55, `rgba(255, 130, 50,  ${fa * 0.55})`);
       fgrad.addColorStop(1,    `rgba(180, 40, 10,   0)`);
       ctx.fillStyle = fgrad;
-      ctx.fillRect(0, 0, this.w, this.h);
+      // Координаты — в translated-системе игровой зоны; расширяем до полного канваса.
+      ctx.fillRect(0, -this.playOffsetY, this.w, this.h);
     }
 
     // --- Слой 3: обломки (вращающиеся прямоугольники) ---
