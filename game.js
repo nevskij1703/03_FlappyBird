@@ -30,8 +30,12 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: false });
+    // Логическая ШИРИНА фиксирована (CONFIG.canvasLogicalWidth = 432).
+    // Логическая ВЫСОТА адаптируется к аспекту viewport — на современных
+    // вытянутых телефонах (9:19.5, 9:21) канвас выше, и игра занимает весь
+    // экран без чёрных полос. Минимум — оригинальные 9:16 (768).
     this.w = CONFIG.canvasLogicalWidth;
-    this.h = CONFIG.canvasLogicalHeight;
+    this.h = this._computeLogicalHeight();
     // Поднимаем backing store до physical-DPI, чтобы Canvas не размывался
     // при CSS-растяжении на hi-DPI экранах. Всё игровое API оперирует
     // логическими координатами — ctx.scale(dpr, dpr) делает их совместимыми.
@@ -110,27 +114,55 @@ export class Game {
     requestAnimationFrame(this._tick);
   }
 
-  // === Канвас на весь stage с сохранением aspect ===
+  // === Расчёт логической высоты канваса под аспект viewport ===
+  // На «вытянутых» экранах канвас выше, игровое поле занимает весь viewport.
+  // На landscape/quadrat — минимум 9:16 (768), сцена будет letterbox по бокам.
+  _computeLogicalHeight() {
+    const vw = window.innerWidth || this.w;
+    const vh = window.innerHeight || CONFIG.canvasLogicalHeight;
+    const minH = CONFIG.canvasLogicalHeight;
+    return Math.max(minH, Math.round(this.w * (vh / vw)));
+  }
+
+  // === Размещение канваса на экране ===
+  // Portrait: stage = viewport, канвас заполняет полностью (никаких чёрных полос).
+  // Landscape: stage letterbox-нут до аспекта канваса (9:16+ на портретных, или
+  // оригинальные 9:16 если viewport почти квадратный).
   _fitCanvas() {
-    const resize = () => {
+    const apply = () => {
+      // Пересчёт логической высоты при ресайзе / повороте — расширяем/сжимаем
+      // backing store, чтобы пиксели оставались чёткими.
+      const newH = this._computeLogicalHeight();
+      if (newH !== this.h) {
+        this.h = newH;
+        this.canvas.width = this.w * this.dpr;
+        this.canvas.height = this.h * this.dpr;
+        this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        // Клампим игрока в новые границы (защита от вылета при resize в полёте).
+        if (this.player) {
+          this.player.y = Math.max(20, Math.min(this.h - 20, this.player.y));
+        }
+      }
       const stage = document.getElementById('stage');
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const targetAspect = this.w / this.h;
-      let cssW, cssH;
-      if (vw / vh > targetAspect) {
-        cssH = vh;
-        cssW = vh * targetAspect;
+      const canvasAspect = this.w / this.h;
+      const viewAspect = vw / vh;
+      if (viewAspect > canvasAspect) {
+        // Viewport шире канваса — letterbox по бокам (landscape / квадрат).
+        const cssH = vh;
+        const cssW = vh * canvasAspect;
+        stage.style.width = cssW + 'px';
+        stage.style.height = cssH + 'px';
       } else {
-        cssW = vw;
-        cssH = vw / targetAspect;
+        // Viewport уже / точно по аспекту канваса — заполняем весь экран.
+        stage.style.width = vw + 'px';
+        stage.style.height = vh + 'px';
       }
-      stage.style.width = cssW + 'px';
-      stage.style.height = cssH + 'px';
     };
-    resize();
-    window.addEventListener('resize', resize);
-    window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+    apply();
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', () => setTimeout(apply, 100));
   }
 
   // === Input ===
